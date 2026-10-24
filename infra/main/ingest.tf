@@ -55,8 +55,8 @@ resource "aws_lambda_function" "ingest" {
   handler          = "river_forecast.ingest.handler.lambda_handler"
   filename         = data.archive_file.ingest.output_path
   source_code_hash = data.archive_file.ingest.output_base64sha256
-  memory_size      = 256
-  timeout          = 600
+  memory_size      = 512
+  timeout          = 900
 
   environment {
     variables = {
@@ -80,6 +80,10 @@ locals {
     met-forecast = { expr = "cron(15 * * * ? *)", input = { job = "met_forecast" } }
     met-warnings = { expr = "cron(25 * * * ? *)", input = { job = "met_warnings" } }
     met-obs      = { expr = "cron(50 */3 * * ? *)", input = { job = "met_obs" } }
+    # Monthly full-history refresh from OPW Hydro-Data (OPW revises history as it checks data).
+    hydrodata-s      = { expr = "cron(0 4 1 * ? *)", input = { job = "opw_hydrodata", params = ["S"] } }
+    hydrodata-q      = { expr = "cron(20 4 1 * ? *)", input = { job = "opw_hydrodata", params = ["Q"] } }
+    hydrodata-precip = { expr = "cron(40 4 1 * ? *)", input = { job = "opw_hydrodata", params = ["Precip"] } }
   }
 }
 

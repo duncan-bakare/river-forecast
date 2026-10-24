@@ -22,11 +22,14 @@ class Ctx:
         self.now = now or datetime.now(UTC)
         self.sleep = sleep
         self.results = []
+        self.seen = set()  # per-run de-duplication for jobs that need it
 
-    def save(self, rel_key, raw, report, content_type):
+    def save(self, rel_key, raw, report, content_type, compress=True):
+        """Store raw bytes (gzipped unless compress=False, e.g. files that are
+        already ZIPs and must be kept byte-for-byte)."""
         prefix = "raw" if report["ok"] else "quarantine"
-        key = f"{prefix}/{rel_key}.gz"
-        self.store.put(key, gz(raw), content_type)
+        key = f"{prefix}/{rel_key}.gz" if compress else f"{prefix}/{rel_key}"
+        self.store.put(key, gz(raw) if compress else raw, content_type)
         self.store.put(f"validation/{rel_key}.json", json.dumps(report, default=str).encode(), "application/json")
         self.results.append({"key": key, **report})
         if not report["ok"] or report["issues"]:
@@ -132,10 +135,18 @@ def met_obs(ctx, stations=None, delay=0.5):
         ctx.sleep(delay)
 
 
+def opw_hydrodata(ctx, params=("S", "Q", "Precip"), delay=0.5):
+    # Imported here to keep the module graph simple for the other jobs.
+    from river_forecast.ingest import hydrodata
+
+    hydrodata.pull(ctx, params=params, delay=delay)
+
+
 JOBS = {
     "opw_latest": opw_latest,
     "opw_csv": opw_csv,
     "met_forecast": met_forecast,
     "met_warnings": met_warnings,
     "met_obs": met_obs,
+    "opw_hydrodata": opw_hydrodata,
 }
