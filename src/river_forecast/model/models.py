@@ -8,10 +8,18 @@ import pandas as pd
 LINEAR_UPSTREAM = ("16139", "16137", "16009", "16008", "16007", "16012", "16003", "16013")
 
 
+OWN_COLUMNS = ("dy_1", "dy_3", "dy_6", "dy_24")
+UPSTREAM_WINDOWS = (6, 12, 24)
+
+
+def station_block(station):
+    return [f"du_{station}_{w}" for w in UPSTREAM_WINDOWS]
+
+
 def linear_columns():
-    cols = ["dy_1", "dy_3", "dy_6", "dy_24"]
+    cols = list(OWN_COLUMNS)
     for s in LINEAR_UPSTREAM:
-        cols += [f"du_{s}_6", f"du_{s}_12", f"du_{s}_24"]
+        cols += station_block(s)
     return cols
 
 
@@ -26,31 +34,115 @@ class Persistence:
 
 
 class UpstreamLinear:
-    """OLS on upstream level changes. Where an input is missing it falls back to
-    persistence (dy = 0) and counts the fallback."""
+    """OLS on Clonmel's own recent changes plus upstream level changes, with proper handling of
+    missing stations (no silent fallback to persistence).
+
+    Each upstream station is a block of columns; a row can use a station only if the whole block
+    is present. One OLS model is fitted per station subset that is common in training (patterns seen
+    at least `min_rows` times, all subsets missing at most two stations, and own-columns-only), each
+    on every training row where that subset is available. At prediction, each row uses the largest
+    fitted subset contained in the stations it has. If the *own* columns are missing the prediction
+    is NaN, never 0, so a missing input can't masquerade as 'no change'."""
 
     name = "upstream_linear"
 
-    def __init__(self, ridge=1e-3):
-        self.cols = linear_columns()
+    def __init__(self, stations=LINEAR_UPSTREAM, ridge=1e-3, min_rows=500, max_dropped=2):
+        self.stations = tuple(stations)
         self.ridge = ridge
+        self.min_rows = min_rows
+        self.max_dropped = max_dropped
 
-    def fit(self, X, y):
-        d = X[self.cols].assign(_y=y).dropna()
-        A = np.column_stack([np.ones(len(d)), d[self.cols].to_numpy()])
+    def _masks(self, X):
+        """int bitmask per row of which stations have a complete block; plus own-columns-ok flag."""
+        bits = np.zeros(len(X), dtype=np.int64)
+        for i, s in enumerate(self.stations):
+            bits |= (X[station_block(s)].notna().all(axis=1).to_numpy().astype(np.int64)) << i
+        return bits, X[list(OWN_COLUMNS)].notna().all(axis=1).to_numpy()
+
+    def _cols(self, mask):
+        cols = list(OWN_COLUMNS)
+        for i, s in enumerate(self.stations):
+            if mask >> i & 1:
+                cols += station_block(s)
+        return cols
+
+    def _ols(self, A, y):
+        A = np.column_stack([np.ones(len(A)), A])
         reg = self.ridge * np.eye(A.shape[1])
         reg[0, 0] = 0
-        self.coef_ = np.linalg.solve(A.T @ A + reg, A.T @ d._y.to_numpy())
-        self.n_train_ = len(d)
+        return np.linalg.solve(A.T @ A + reg, A.T @ y)
+
+    def fit(self, X, y):
+        bits, own_ok = self._masks(X)
+        ok = own_ok & y.notna().to_numpy()
+        full = (1 << len(self.stations)) - 1
+        cands = {0}
+        for m, n in zip(*np.unique(bits[ok], return_counts=True), strict=True):
+            if n >= self.min_rows:
+                cands.add(int(m))
+        for i in range(len(self.stations)):
+            cands.add(full & ~(1 << i))
+            for j in range(i + 1, len(self.stations)):
+                cands.add(full & ~(1 << i) & ~(1 << j))
+        cands.add(full)
+        yv = y.to_numpy()
+        self.models_ = {}
+        for m in sorted(cands):
+            rows = ok & ((bits & m) == m)
+            if rows.sum() < self.min_rows:
+                continue
+            cols = self._cols(m)
+            self.models_[m] = (cols, self._ols(X[cols].to_numpy()[rows], yv[rows]), int(rows.sum()))
+        self.full_mask_ = full
         return self
 
+    def _choose(self, avail):
+        best = None
+        for m, (_, _, n) in self.models_.items():
+            if m & ~avail == 0:
+                key = (bin(m).count("1"), n)
+                if best is None or key > best[0]:
+                    best = (key, m)
+        return best[1]
+
     def predict(self, X):
-        A = X[self.cols]
-        ok = A.notna().all(axis=1)
-        pred = pd.Series(0.0, index=X.index)
-        pred[ok] = self.coef_[0] + A[ok].to_numpy() @ self.coef_[1:]
-        self.fallback_rate_ = float(1 - ok.mean())
-        return pred
+        bits, own_ok = self._masks(X)
+        pred = np.full(len(X), np.nan)
+        used = np.full(len(X), -1, dtype=np.int64)
+        for avail in np.unique(bits[own_ok]):
+            m = self._choose(int(avail))
+            cols, coef, _ = self.models_[m]
+            rows = own_ok & (bits == avail)
+            pred[rows] = coef[0] + X[cols].to_numpy()[rows] @ coef[1:]
+            used[rows] = bin(m).count("1")
+        self.used_ = pd.Series(used, index=X.index)  # stations used per row (-1 = no forecast)
+        return pd.Series(pred, index=X.index)
+
+    def usage(self, mask=None):
+        """Share of forecastable rows by number of upstream stations used, and the NaN rate."""
+        u = self.used_ if mask is None else self.used_[mask]
+        ok = u[u >= 0]
+        return {
+            "no_forecast_rate": float((u < 0).mean()),
+            "full_model_rate": float((ok == len(self.stations)).mean()),
+            "own_only_rate": float((ok == 0).mean()),
+            "mean_stations": float(ok.mean()),
+        }
+
+
+def cqr_scores(lo, hi, y):
+    """Conformalised-quantile-regression nonconformity scores (positive = outside the raw interval)."""
+    return np.maximum(lo - y, y - hi)
+
+
+def conformal_quantile(scores, alpha=0.1):
+    """Finite-sample (1 - alpha) quantile of the scores (0 if there are none)."""
+    s = np.sort(np.asarray(scores, float))
+    s = s[~np.isnan(s)]
+    if not len(s):
+        return 0.0
+    k = min(len(s) - 1, int(np.ceil((len(s) + 1) * (1 - alpha))) - 1)
+    return float(s[k])
 
 
 class LGBMQuantile:
@@ -104,8 +196,13 @@ class LGBMQuantile:
     def predict(self, X):
         return pd.Series(self.point.predict(X), index=X.index)
 
-    def predict_interval(self, X):
-        q = np.where(X["y"] >= self.high_level, self.q_["high"], self.q_["normal"])
-        lo = self.lo.predict(X) - q
-        hi = self.hi.predict(X) + q
-        return pd.Series(lo, index=X.index), pd.Series(hi, index=X.index)
+    def raw_interval(self, X):
+        """Uncalibrated 5%/95% quantile predictions of dy."""
+        return pd.Series(self.lo.predict(X), index=X.index), pd.Series(self.hi.predict(X), index=X.index)
+
+    def predict_interval(self, X, q=None):
+        """CQR interval for dy. `q` overrides the stored corrections ({"normal": m, "high": m})."""
+        q = q or self.q_
+        corr = np.where(X["y"] >= self.high_level, q["high"], q["normal"])
+        lo, hi = self.raw_interval(X)
+        return lo - corr, hi + corr

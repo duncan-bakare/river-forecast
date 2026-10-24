@@ -50,30 +50,31 @@ def peak_error(obs, sim, start, end):
 
 
 def onsets(series, threshold, min_gap_h=48):
-    """Times the series first rises above threshold, with episodes closer than min_gap_h merged."""
-    above = series > threshold
-    starts = series.index[above & ~above.shift(1, fill_value=False)]
-    out = []
-    last_above = None
-    for t in starts:
-        if last_above is None or (t - last_above) > pd.Timedelta(hours=min_gap_h):
-            out.append(t)
-        # find end of this episode
-        after = above.loc[t:]
-        ends = after[~after]
-        last_above = (ends.index[0] if len(ends) else series.index[-1]) - pd.Timedelta(hours=1)
-    return out
+    """First hour of each exceedance episode in an hourly series.
+
+    An onset needs the previous hour to be observed and at or below the threshold, so the start of
+    a record or of a data gap never counts. Episodes with no gap of at least `min_gap_h` hours
+    below the threshold before them are merged into the earlier one. The series must not have
+    scored/unscored periods spliced out: pass the full series and filter the result with `within`."""
+    s = series.asfreq("h")
+    above = (s > threshold).astype(int)
+    recent = above.rolling(min_gap_h, min_periods=1).sum().shift(1).fillna(0)
+    start = (s > threshold) & (s.shift(1) <= threshold) & (recent == 0)
+    return list(s.index[start])
 
 
-def detection_lead(obs, forecasts, threshold, tolerance_h=3):
+def detection_lead(obs, forecasts, threshold, tolerance_h=3, within=None):
     """For each observed exceedance onset, the longest lead at which a forecast caught it.
 
-    forecasts: {lead_h: Series of forecasts indexed by valid time}. A lead-h forecast
-    catches an onset if any of its values valid within onset +- tolerance exceed the
-    threshold. Returns DataFrame[onset, peak, lead_h] (lead_h = 0 if never caught)."""
+    forecasts: {lead_h: full Series of forecasts indexed by valid time}. A lead-h forecast catches
+    an onset if any of its values valid within onset +- tolerance exceed the threshold, so the real
+    advance warning can be up to `tolerance_h` shorter than the nominal lead. `within` (boolean
+    Series on obs.index) keeps only onsets that fall in the scored period."""
     rows = []
     tol = pd.Timedelta(hours=tolerance_h)
     for t0 in onsets(obs, threshold):
+        if within is not None and not within.get(t0, False):
+            continue
         caught = [h for h, f in forecasts.items() if (f.loc[t0 - tol : t0 + tol] > threshold).any()]
         rows.append(
             {"onset": t0, "peak": float(obs.loc[t0 : t0 + pd.Timedelta("72h")].max()), "lead_h": max(caught, default=0)}
@@ -96,11 +97,14 @@ def contingency(obs, fc, threshold):
     }
 
 
-def false_alarm_episodes(obs, fc, threshold, window_h=24):
-    """Forecast exceedance episodes with no observed exceedance within +-window_h."""
+def false_alarm_episodes(obs, fc, threshold, window_h=24, within=None):
+    """Forecast exceedance onsets with no observed exceedance within +-window_h. `fc` is the full
+    forecast series; `within` keeps only forecast onsets in the scored period."""
     obs_above = obs > threshold
     n = 0
-    for t in onsets(fc.dropna(), threshold, min_gap_h=window_h):
+    for t in onsets(fc, threshold, min_gap_h=window_h):
+        if within is not None and not within.get(t, False):
+            continue
         w = obs_above.loc[t - pd.Timedelta(hours=window_h) : t + pd.Timedelta(hours=window_h)]
         if not w.any():
             n += 1

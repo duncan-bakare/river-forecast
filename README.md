@@ -86,7 +86,7 @@ See [docs/phase1/report.md](docs/phase1/report.md). The main modelling target is
 
 ## Phase 2 results
 
-See [docs/phase2/report.md](docs/phase2/report.md) and DECISIONS D18-D21. For Clonmel, LightGBM beats persistence clearly
+See [docs/phase2/report.md](docs/phase2/report.md), the corrected [re-run](docs/phase2/rerun/report.md) and DECISIONS D18-D22. For Clonmel, LightGBM beats persistence clearly
 at 6-12 h, modestly at 24 h, and is **not reliably better at 48 h**. Its 90% intervals under-cover in floods, and
 nothing here is suitable as a published flood forecast.
 

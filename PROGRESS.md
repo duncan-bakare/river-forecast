@@ -128,3 +128,21 @@
 - Calibrate the high-flow intervals properly (blocked cross-validation that keeps the floods).
 - Evaluate with HARMONIE rain once enough forecast history exists, and keep archiving it.
 - Dodder as a secondary rainfall-driven nowcast, once there is a winter of Waldron's Bridge data.
+
+## Phase 2 corrections (2026-10-24)
+
+**Done** (D22; `analysis/phase2_rerun.py`, `analysis/phase2_intervals.py`, `docs/phase2/rerun/`)
+- Linear baseline: no silent fallback. Sub-models per available station subset, NaN only if Clonmel's own data are missing.
+- Onset counting: continuous series, previous hour observed and below, then filtered to the scored period. Persistence now catches 0 onsets.
+- Re-ran the flood comparisons on identical rows for all models. Saved models and predictions (outside the repo).
+- Flood intervals: event-fold conformal recalibration, plus a rise-aware variant (rejected: no extra gain). Tests: 63 (was 56).
+
+**Numbers** (floods, skill vs persistence; linear / LightGBM): 6 h 0.35 / 0.85, 12 h 0.46 / 0.63, 24 h 0.32 / 0.34, 48 h 0.155 / 0.083.
+- LightGBM's margin over the corrected linear baseline is real at 6–12 h, nil at 24 h in floods, and reversed at 48 h.
+- Peak timing: LightGBM best at 6–12 h, linear best at 24–48 h. Onsets caught of 16 at ≥ 24 h: linear 4, LightGBM 2, none at 48 h. The
+  linear model catches more but has about 4× the false alarms.
+- Out-of-fold flood interval coverage rose from 0.79/0.69/0.63/0.61 to 0.81/0.72/0.71/0.65 against a nominal 0.90.
+
+**What didn't work:** recalibration only partly helps. Flood coverage stays at 65–81%, because errors are heavy-tailed on rising limbs and in the
+lead-up to floods, so it is a documented limitation. The rise-aware regime gave no further gain. Only 4 events per fold support these coverage numbers.
+LightGBM's results are unchanged and reproduced exactly. The v1 exceedance counts for LightGBM were slightly inflated by the onset artifact.
