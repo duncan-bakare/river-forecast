@@ -37,11 +37,10 @@
   `main_value`). The parser was fixed, the files reprocessed, and the quarantine copies removed (D7.2).
 - Back-up loggers and Hollyford have no OD sensor, so their OD CSVs return 404 (D7.3).
 
-**Needs the owner**
-- Click the two AWS SNS confirmation emails (billing alerts in us-east-1, ingest failures in eu-west-1).
-  Until then, alarms fire but nobody is emailed. The Budget emails work without confirmation.
-- Turn on Billing console → Billing preferences → "Receive CloudWatch billing alerts". Without it the
-  billing alarm has no metric to watch.
+**Owner actions (done 2026-10-24)**
+- Both SNS email subscriptions are confirmed (billing alerts in us-east-1, ingest failures in eu-west-1).
+- "Receive CloudWatch billing alerts" is on. `AWS/Billing EstimatedCharges` (Currency=USD) is now published,
+  so the billing alarm has a metric to evaluate.
 
 **Next (Phase 1 candidates)**
 - Daily compaction of raw → Parquet, plus Athena/DuckDB views.
