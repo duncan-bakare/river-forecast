@@ -28,31 +28,37 @@ MISSING = (255, -1)
 STATUSES = ("checked", "provisional", "unreliable", "unusable", "missing", "undocumented")
 
 TS = pa.timestamp("ms", tz="UTC")
+DICT = pa.dictionary(pa.int8(), pa.string())
 SCHEMA = pa.schema(
     [
-        ("station_no", pa.string()),
-        ("param", pa.string()),
+        ("station_no", DICT),
+        ("param", DICT),
         ("timestamp", TS),
         ("value", pa.float64()),
         ("quality_code", pa.int16()),
-        ("quality_status", pa.dictionary(pa.int8(), pa.string())),
+        ("quality_status", DICT),
         ("aggregation_accuracy", pa.float64()),
-        ("unit", pa.string()),
-        ("source", pa.string()),
+        ("unit", DICT),
+        ("source", DICT),
     ]
 )
 
 
 def quality_status(codes, values):
-    """codes: int array with -9999 for null; values: float array (NaN = empty)."""
+    """codes: int array with -9999 for null; values: float array (NaN = empty).
+    Returns a dictionary array built from int8 indices (no per-row Python strings)."""
     codes = np.asarray(codes)
-    out = np.full(codes.shape, "undocumented", dtype=object)
-    out[np.isin(codes, CHECKED)] = "checked"
-    out[np.isin(codes, PROVISIONAL) | (codes == -9999)] = "provisional"
-    out[np.isin(codes, UNRELIABLE)] = "unreliable"
-    out[np.isin(codes, UNUSABLE)] = "unusable"
-    out[np.isin(codes, MISSING) | np.isnan(values)] = "missing"
-    return pa.array(out, pa.string()).dictionary_encode()
+    idx = np.full(codes.shape, STATUSES.index("undocumented"), dtype=np.int8)
+    idx[np.isin(codes, CHECKED)] = STATUSES.index("checked")
+    idx[np.isin(codes, PROVISIONAL) | (codes == -9999)] = STATUSES.index("provisional")
+    idx[np.isin(codes, UNRELIABLE)] = STATUSES.index("unreliable")
+    idx[np.isin(codes, UNUSABLE)] = STATUSES.index("unusable")
+    idx[np.isin(codes, MISSING) | np.isnan(values)] = STATUSES.index("missing")
+    return pa.DictionaryArray.from_arrays(pa.array(idx, pa.int8()), pa.array(STATUSES, pa.string()))
+
+
+def _const(value, n):
+    return pa.DictionaryArray.from_arrays(pa.array(np.zeros(n, np.int8)), pa.array([value], pa.string()))
 
 
 def _table(station, param, ts, values, codes, accuracy, unit, source):
@@ -61,15 +67,15 @@ def _table(station, param, ts, values, codes, accuracy, unit, source):
     code_np = pc.fill_null(codes, -9999).to_numpy(zero_copy_only=False) if codes is not None else np.full(n, -9999)
     return pa.table(
         {
-            "station_no": pa.array([station] * n, pa.string()),
-            "param": pa.array([param] * n, pa.string()),
+            "station_no": _const(station, n),
+            "param": _const(param, n),
             "timestamp": ts,
             "value": pa.array(vals, pa.float64(), from_pandas=True),
             "quality_code": codes.cast(pa.int16()) if codes is not None else pa.nulls(n, pa.int16()),
             "quality_status": quality_status(code_np, vals),
             "aggregation_accuracy": accuracy if accuracy is not None else pa.nulls(n, pa.float64()),
-            "unit": pa.array([unit] * n, pa.string()),
-            "source": pa.array([source] * n, pa.string()),
+            "unit": _const(unit, n),
+            "source": _const(source, n),
         }
     ).cast(SCHEMA)
 
@@ -79,7 +85,8 @@ def hydrodata_zip_to_table(raw_zip, param, source):
     zf = zipfile.ZipFile(io.BytesIO(raw_zip))
     data = zf.read("tsvalues.csv")
     meta, columns, skip = {}, None, 0
-    for line in data.decode("utf-8-sig").splitlines():
+    for raw_line in io.BytesIO(data):
+        line = raw_line.decode("utf-8-sig").rstrip("\r\n")
         if not line.startswith("#"):
             break
         skip += 1
@@ -119,6 +126,18 @@ def hydrodata_zip_to_table(raw_zip, param, source):
     )
 
 
+WRITE_OPTIONS = {
+    "compression": "snappy",  # the AWS SDK for pandas layer's pyarrow is built without zstd
+    "use_dictionary": ["station_no", "param", "quality_status", "unit", "source"],
+    "column_encoding": {
+        "timestamp": "DELTA_BINARY_PACKED",
+        "quality_code": "DELTA_BINARY_PACKED",
+        "value": "BYTE_STREAM_SPLIT",
+        "aggregation_accuracy": "BYTE_STREAM_SPLIT",
+    },
+}
+
+
 def realtime_csvs_to_table(station, sensor, csvs):
     """Merge OPW real-time CSVs [(source_key, bytes)] for one station/sensor.
     Later sources win on duplicate timestamps, so pass them oldest first."""
@@ -135,4 +154,6 @@ def realtime_csvs_to_table(station, sensor, csvs):
     values = pa.array([latest[k][0] for k in keys], pa.float64())
     sources = [latest[k][1] for k in keys]
     table = _table(station, sensor, ts, values, None, None, "m", "")
-    return table.set_column(table.schema.get_field_index("source"), "source", pa.array(sources, pa.string()))
+    return table.set_column(
+        table.schema.get_field_index("source"), "source", pa.array(sources, pa.string()).dictionary_encode()
+    ).cast(SCHEMA)

@@ -61,8 +61,25 @@ def test_hydrodata_job_writes_partitions_and_prunes(fixture_bytes):
     assert snaps == {"snapshot=2026-09-01", "snapshot=2026-10-24"}
     t = _read(store, "curated/opw_hydrodata/snapshot=2026-10-24/param=S/station=16011.parquet")
     assert t.num_rows == 40
-    stations = _read(store, "curated/opw_hydrodata/snapshot=2026-10-24/stations.parquet").to_pylist()
-    assert {(s["station_no"], s["param"], s["rows"]) for s in stations} == {("16011", "S", 40), ("09369", "Q", 0)}
+    stations = _read(store, "curated/opw_hydrodata/snapshot=2026-10-24/stations/param=S.parquet").to_pylist()
+    assert [(s["station_no"], s["rows"]) for s in stations] == [("16011", 40)]
+    assert store.exists("curated/opw_hydrodata/snapshot=2026-10-24/stations/param=Q.parquet")
+
+
+def test_hydrodata_job_param_filter(fixture_bytes):
+    store = MemoryStore()
+    store.put(
+        "raw/opw_hydrodata/snapshot=2026-10-24/param=S/station=16011/Waterlevel_complete.zip",
+        fixture_bytes("hd_16011_S.zip"),
+    )
+    store.put(
+        "raw/opw_hydrodata/snapshot=2026-10-24/param=Precip/station=81623/Rainfall_complete.zip",
+        fixture_bytes("hd_81623_Precip.zip"),
+    )
+    assert handler.hydrodata(store, params=["Precip"])["files"] == 1
+    assert store.list("curated/opw_hydrodata/snapshot=2026-10-24/param=") == [
+        "curated/opw_hydrodata/snapshot=2026-10-24/param=Precip/station=81623.parquet"
+    ]
 
 
 def test_realtime_job_merges_and_newer_wins():
