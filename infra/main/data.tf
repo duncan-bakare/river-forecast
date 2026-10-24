@@ -41,6 +41,31 @@ resource "aws_s3_bucket_lifecycle_configuration" "data" {
 
   # Hourly national snapshots are a safety net; the per-station CSVs are the
   # primary record. Keep a year of snapshots.
+  # Monthly Hydro-Data snapshots are kept as a record of OPW's revisions, but
+  # only the newest is read. Older ZIPs go to cheap tiers, then expire after 5 years.
+  # The size filter skips the small metadata JSONs (Glacier bills a 128 KB minimum).
+  rule {
+    id     = "archive-old-hydrodata-snapshots"
+    status = "Enabled"
+    filter {
+      and {
+        prefix                   = "raw/opw_hydrodata/"
+        object_size_greater_than = 131072
+      }
+    }
+    transition {
+      days          = 35
+      storage_class = "GLACIER_IR"
+    }
+    transition {
+      days          = 180
+      storage_class = "DEEP_ARCHIVE"
+    }
+    expiration {
+      days = 1825
+    }
+  }
+
   rule {
     id     = "expire-national-snapshots"
     status = "Enabled"

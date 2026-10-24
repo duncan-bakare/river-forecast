@@ -16,6 +16,12 @@ class MemoryStore:
     def get(self, key):
         return self.objects[key]
 
+    def list(self, prefix):
+        return sorted(k for k in self.objects if k.startswith(prefix))
+
+    def delete(self, key):
+        self.objects.pop(key, None)
+
 
 class S3Store:
     def __init__(self, bucket, client=None):
@@ -35,6 +41,15 @@ class S3Store:
 
     def get(self, key):
         return self.client.get_object(Bucket=self.bucket, Key=key)["Body"].read()
+
+    def list(self, prefix):
+        keys = []
+        for page in self.client.get_paginator("list_objects_v2").paginate(Bucket=self.bucket, Prefix=prefix):
+            keys.extend(o["Key"] for o in page.get("Contents", []))
+        return sorted(keys)
+
+    def delete(self, key):
+        self.client.delete_object(Bucket=self.bucket, Key=key)
 
 
 def gz(data):
