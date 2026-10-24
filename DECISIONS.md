@@ -311,6 +311,7 @@ Newest last. Each entry: what, why, alternatives.
   verified; the calibration counts per regime are not saved).
 
 ## D20. Phase 2 results: where the models do and do not beat persistence
+**Superseded in part by D22:** the linear-model rows, the exceedance numbers and the interval coverage below were corrected in the re-run.
 (MSE skill vs persistence; 0 = no better. NSE and KGE are of the forecast level. Full tables: `docs/phase2/report.md`.)
 
 | set | h | NSE pers / lin / LGBM | KGE pers / lin / LGBM | skill lin / LGBM [LGBM 5–95%] |
@@ -356,6 +357,7 @@ Newest last. Each entry: what, why, alternatives.
   flood forecast** (see also the "not an official flood warning" statement in the README).
 
 ## D21. Problems found on review of the Phase 2 run, and what to do next
+(Items 1-3 were fixed or documented in D22; item 4 is partly done.)
 1. **The upstream-linear baseline is handicapped.** It requires all 8 upstream inputs at all lags and falls back to
    persistence otherwise. That happens in 32% of all hours, and in **4 of 8 backtest events (2014, 2015, 2019,
    2022) it produced exactly persistence** (timing = h, size 0.000, visible in the figures). So its
@@ -376,3 +378,61 @@ Newest last. Each entry: what, why, alternatives.
    proxy and say so.
 6. **The provisional test is weak** (no floods, 4 months). Revisit once OPW has checked more recent data
    and once the next winter's floods exist.
+
+## D22. Phase 2 corrections: linear baseline, onset counting, flood intervals (re-run 2026-10-24)
+Code: `analysis/phase2_rerun.py`, `analysis/phase2_intervals.py`. Full tables: `docs/phase2/rerun/report.md`. This supersedes
+D20 for the linear model, the exceedance numbers and the intervals; D20's LightGBM, persistence and perfect-rain numbers
+stand (LightGBM reproduced exactly: same tree counts 831/141/144/143 and identical skill values).
+
+- **Linear baseline fixed (D21.1).** It now fits 40 sub-models, one per common subset of upstream stations, and each row
+  uses the largest subset it has. If Clonmel's own data are missing the forecast is NaN, never persistence. It uses the full
+  8-station model in 83% of 2022+ hours (63% in flood windows, mean 7.6 stations), against persistence in 32% of hours before,
+  and every flood event now gets a real multi-station forecast (6.6–8 stations). Comparisons use the same rows for all
+  models.
+- **Onset counting fixed (D21.3).** Onsets are found on the full series (the previous hour must be observed and below the
+  threshold, with 48 h clear before) and filtered to the scored period afterwards. Persistence now catches 0 onsets at every
+  lead, which is asserted in the script and in unit tests. The AMAX-median count went from 12 to 13 onsets.
+
+**Corrected table** (Clonmel; P = persistence, L = upstream-linear, G = LightGBM; skill = MSE skill vs persistence):
+
+| h | NSE P/L/G, test | KGE P/L/G, test | skill L/G, test | skill L/G, 8 floods | peak timing, med. abs h, P/L/G | onsets caught ≥ h of 16 (16.702 m), P/L/G | false alarms in test, L/G | G interval coverage, floods (first run → recalibrated, out-of-fold) |
+|---|---|---|---|---|---|---|---|---|
+| 6 | .982/.993/.997 | .991/.997/.998 | .63/.85 | .35/.85 | 6/10.5/3.5 | 0/16/16 | – | .79 → .81 |
+| 12 | .952/.971/.981 | .976/.986/.986 | .41/.61 | .46/.63 | 12/12/8 | 0/10/7 | 12/3 | .69 → .72 |
+| 24 | .886/.911/.932 | .943/.955/.944 | .22/.41 | .32/.34 | 24/9/15 | 0/4/2 | 15/4 | .63 → .71 |
+| 48 | .780/.796/.822 | .890/.897/.862 | .075/.19 | .155/.083 | 48/38/43.5 | 0/0/0 | – | .61 → .65 |
+
+(False alarms: forecast exceedance onsets of 16.702 m in 2022–2026 with no observed exceedance within 24 h, at 12 and 24 h leads.)
+
+**What the correction changes in the conclusions**
+- The linear baseline was understated. It improves from 0.38 to 0.46 skill in floods at 12 h, and from 0.13 to 0.155 at 48 h.
+  **LightGBM's margin over it is real at 6–12 h** (floods: 0.85 vs 0.35 and 0.63 vs 0.46), **nil at 24 h in floods** (0.34 vs 0.32,
+  intervals overlap) and **reversed at 48 h in floods** (linear 0.155 [0.10, 0.22] vs LightGBM 0.083 [−0.05, 0.21]).
+  On checked test data LightGBM's skill is ahead at every horizon (though its 48 h KGE, 0.862, is below the linear model's 0.897 and persistence's 0.890). So at long leads in floods, adding rain and nonlinearity buys
+  nothing without rainfall forecasts.
+- **Peak timing:** LightGBM is best at 6 and 12 h. The linear model is best at 24 and 48 h (9 and 38 h median error against
+  15 and 43.5 h). At 6 h the linear model's timing (10.5 h) is *worse* than persistence's (6 h). Peak size: LightGBM is better at 6 h, level at 12 h, and the linear model is better at 24 and 48 h (0.07 vs 0.11 m, 0.23 vs 0.25 m). At 48 h both
+  underestimate the peak in most events (linear 6 of 8, LightGBM 8 of 8).
+- **Exceedance:** persistence 0 at all leads (the first run's 2/1 were the artifact). The linear model catches more onsets
+  than LightGBM at 12 and 24 h (10 vs 7, 4 vs 2 for 16.702 m; 9 vs 5 for 16.914 m at 12 h), but with about four times as many false
+  alarms (12 vs 3 at 12 h, 15 vs 4 at 24 h) and a lower CSI (0.775 vs 0.865). **No model gives usable warning beyond 12 h: at best
+  4 of 16 onsets at 24 h and none at 48 h**, and the real lead is up to 3 h shorter than nominal because of the ±3 h tolerance.
+
+**Flood intervals: improved a little, still under-cover (documented limitation).**
+- *Diagnosis (original correction, flood windows):* coverage is 0.79 / 0.69 / 0.65 / 0.71 at 6/12/24/48 h for hours with level ≥ 15.74 m, but 0.74 / 0.58 / 0.55 / 0.65
+  when the level was rising ≥ 0.10 m over the previous 6 h, and at 48 h only 0.26 for the lead-up hours below 15.74 m (the model can't see a
+  flood coming two days ahead). The errors are concentrated where the forecast is weakest and are heavy-tailed.
+- *Fix tried:* event-fold conformal recalibration of the high-flow correction (calibration-period scores plus one fold of the 8 events,
+  evaluated on the other fold). Out-of-fold flood coverage: 0.81 / 0.72 / 0.71 / 0.65 (first run 0.79 / 0.69 / 0.63 / 0.61), with the widths up 2–11%.
+  Coverage over *all* high-level hours reaches 0.90–0.91 (partly in-sample), and the checked test set improves slightly (0.86–0.88).
+- *Second variant rejected:* a separate rise-aware regime (6 h rise ≥ 0.10 m, chosen after seeing the diagnosis) gave out-of-fold flood coverage of
+  0.82 / 0.72 / 0.70 / 0.65, essentially the same, so the simpler version is kept. Its code and results are in the repo.
+- **Limitation, stated plainly:** no constant correction learned from other events brings flood coverage near 90%. A "90% interval" in a
+  flood is really a 65–80% interval at 12 h and beyond (about 80% at 6 h). Any display must say so, or show the recalibrated interval with that
+  caveat. Four events per fold, with strongly autocorrelated hours, make these coverage estimates themselves uncertain.
+- Corrections are in `docs/phase2/rerun/interval_corrections.json` (and `..._rise_aware.json`), with calibration sample sizes (3.5 k
+  calibration-period high-flow rows, 1.4 k event rows).
+
+**Still open:** the backtests are mostly held-out events rather than forward-in-time forecasts (D19). The models and predictions are saved
+outside the repo (`rf-data/phase2_rerun_*`, not versioned). No rainfall forecasts yet, so 24–48 h skill is limited by missing rainfall (D20).
+This is still not suitable for publication as a flood forecast.

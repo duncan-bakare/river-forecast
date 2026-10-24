@@ -59,6 +59,45 @@ def test_onsets_merge_close_episodes():
     assert metrics.onsets(s, 1.0) == [IDX[10], IDX[100]]
 
 
+def test_onsets_ignore_record_start_and_data_gaps():
+    s = pd.Series(0.0, IDX)
+    s.iloc[:5] = 5  # above at the start of the record: no observed 'previous below' hour
+    s.iloc[50:60] = np.nan  # gap
+    s.iloc[60:70] = 5  # above right after the gap: not an onset
+    s.iloc[140:150] = 5  # genuine onset (more than 48 h after the post-gap exceedance)
+    assert metrics.onsets(s, 1.0) == [IDX[140]]
+
+
+def test_episode_already_under_way_when_scoring_starts_is_not_an_onset():
+    s = pd.Series(0.0, IDX)
+    s.iloc[90:130] = 5  # starts before the scored period
+    s.iloc[180:190] = 5
+    within = pd.Series(False, IDX)
+    within.iloc[100:] = True
+    d = metrics.detection_lead(s, {6: s}, 1.0, within=within)
+    assert list(d.onset) == [IDX[180]]  # the 90 onset is outside; 100 is not an onset at all
+
+
+def test_persistence_cannot_catch_onsets_beyond_tolerance():
+    rng = np.random.default_rng(3)
+    s = pd.Series(np.cumsum(rng.normal(0, 0.15, len(IDX))), IDX)
+    thr = float(s.quantile(0.9))
+    for lead in (4, 6, 12, 24):
+        d = metrics.detection_lead(s, {lead: s.shift(lead)}, thr, tolerance_h=3)
+        assert (d.lead_h == 0).all(), (lead, d)
+
+
+def test_false_alarm_within_filters_unscored_forecast_onsets():
+    o = pd.Series(0.0, IDX)
+    f = pd.Series(0.0, IDX)
+    f.iloc[20:25] = 5  # false alarm outside the scored period
+    f.iloc[150:155] = 5  # false alarm inside it
+    within = pd.Series(False, IDX)
+    within.iloc[100:] = True
+    assert metrics.false_alarm_episodes(o, f, 1.0) == 2
+    assert metrics.false_alarm_episodes(o, f, 1.0, within=within) == 1
+
+
 def test_detection_lead_takes_longest_lead_that_caught_it():
     o = _wave(peak_at=100)  # crosses 2.0 a little before t=100
     t0 = metrics.onsets(o, 2.0)[0]
