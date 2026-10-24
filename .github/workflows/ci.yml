@@ -1,0 +1,63 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[dev]"
+      - run: ruff check src tests scripts
+      - run: ruff format --check src tests scripts
+      - run: pytest -q
+
+  terraform-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~1.16"
+      - run: terraform fmt -check -recursive infra
+      - name: validate
+        run: |
+          for d in infra/bootstrap infra/main; do
+            terraform -chdir=$d init -backend=false -input=false
+            terraform -chdir=$d validate
+          done
+
+  deploy:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [test, terraform-check]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      TF_VAR_ops_email: ${{ secrets.OPS_EMAIL }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: arn:aws:iam::240352458218:role/river-forecast-gha-deploy
+          aws-region: eu-west-1
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~1.16"
+      - run: terraform -chdir=infra/main init -input=false
+      - run: terraform -chdir=infra/main apply -input=false -auto-approve
