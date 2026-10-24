@@ -242,3 +242,22 @@ Newest last. Each entry: what, why, alternatives.
   the Waldron's Bridge record accumulates, and is revisited once it has a winter of data.
 - **Alternatives considered:** Dodder-first (more urgent urban flood risk, but too little data to train and
   verify on). Both equally (splits effort; the Dodder's data won't support it yet).
+
+## D17. Rain-gauge QC by neighbour comparison (fixes the Rosegreen gap)
+- **What:** `river_forecast.features.rain_qc`. Spikes > 50 mm/15 min are dropped. Each gauge-year is then
+  compared with the median of its 4 nearest gauges, and flagged if it shows `low_corr` (daily r < 0.6),
+  `step_bias` (a step of at least 1.6x in the gauge/neighbour ratio, lasting at least 3 years on each side;
+  the side further from 1.0 is flagged) or `ratio_outlier` (a single year more than 1.5x off the gauge's
+  own typical ratio). The check iterates, removing flagged gauge-years from the neighbour reference and
+  re-testing, so one bad gauge doesn't get its neighbours flagged. Catchment rain is the *mean* of
+  unflagged gauges, requiring at least 5 reporting.
+- **Why:** The D15 correlation filter missed Rosegreen 81615, which reads about 1.07x its neighbours until
+  2018 and about 2.1x from 2019 while still correlating well. A fixed ratio threshold would wrongly reject
+  upland gauges that are consistently wet (Knockmealdown about 1.5x, Rossadrehid about 1.5x). Checking for
+  *changes* relative to each gauge's own level separates a fault from a climate difference.
+- **Result:** 22 gauge-years flagged (12 low_corr, 7 step_bias, 3 ratio_outlier). That includes Rosegreen
+  2019 (low_corr) and 2020–2026 (step_bias), and Cappaghnagarrane 2012, 2022, 2024 and 2025. Without
+  iteration, 3 extra 2019 flags appeared on northern gauges, caused by bad neighbours. Several gauges fail
+  together in 2019, so that year may have had a network-wide problem. With the fix, the Clonmel water-balance
+  losses for 2022–2025 fall from 469–543 to 440–502 mm/yr (mean coefficient 0.64, loss 416 mm/yr).
+  The upward drift that Rosegreen's bias caused is mostly gone.
