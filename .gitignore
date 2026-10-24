@@ -1,0 +1,22 @@
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+*.tfplan
+crash.log
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+build/
+dist/
+*.egg-info/
+
+# Local data
+data/
+*.zip
+.env
