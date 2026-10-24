@@ -71,35 +71,39 @@ This is only 5 weeks of autumn data. Re-run it as the real-time archive grows.
 **97.9% of values are quality code 254 (unchecked)**: OPW has not quality-controlled
 these rain records, so we have to.
 
-QC applied: drop 15-min values > 50 mm (physically implausible), and drop gauge-years whose daily
-correlation with the median of the other gauges is < 0.6 (13 gauge-years removed).
+QC (`river_forecast.features.rain_qc`): drop 15-min values > 50 mm, then compare each gauge-year with
+the median of its 4 nearest gauges and flag: daily r < 0.6 (`low_corr`); a step change of
+>= 1.6x in the gauge/neighbour ratio lasting >= 3 years (`step_bias`, the Rosegreen case);
+or a single year > 1.5x off the gauge's own typical ratio (`ratio_outlier`). It iterates, so a bad
+gauge doesn't get its neighbours flagged. Consistently wet upland gauges are *not* flagged.
+**22 gauge-years flagged** ({'low_corr': 12, 'step_bias': 7, 'ratio_outlier': 3}).
 
-| station_no | station_name | first | pct_provisional | spikes_gt_50mm | days_complete | r_vs_others | ratio_vs_others | bad_years |
+| station_no | station_name | first | pct_provisional | spikes_gt_50mm | days_complete | r_vs_neighbours | ratio_vs_neighbours | flagged_years |
 |---|---|---|---|---|---|---|---|---|
-| 81630 | Dundrum Reservoir | 2010-06-02 | 99.2 | 0.0 | 5335 | 0.8 | 1.2 | 2021 |
-| 81619 | Templemore Water Treatment P | 2010-03-15 | 88.8 | 0.0 | 5473 | 0.82 | 1.14 | 2019,2024 |
-| 81621 | Stooke Reservoir | 2010-05-21 | 99.8 | 0.0 | 5446 | 0.82 | 1.24 | 2017 |
-| 81611 | Knocknaree Nire Site | 2005-11-30 | 99.8 | 2.0 | 5732 | 0.83 | 1.11 | 2021 |
-| 81605 | Cahir Wastewater Treatment P | 2005-11-29 | 99.7 | 0.0 | 5614 | 0.84 | 1.0 | - |
-| 81625 | Templetouhy Reservoir | 2010-03-09 | 88.9 | 0.0 | 5247 | 0.85 | 0.94 | - |
-| 81623 | Cashel Wastewater Treatment  | 2005-10-13 | 99.9 | 0.0 | 5714 | 0.85 | 0.97 | - |
-| 81612 | Tooreen West Nire Site | 2005-11-30 | 99.7 | 0.0 | 5486 | 0.85 | 1.47 | - |
-| 81632 | Tournanena | 2018-08-08 | 99.9 | 1.0 | 2579 | 0.85 | 1.13 | - |
-| 81636 | Feddans | 2020-08-28 | 99.9 | 0.0 | 2179 | 0.85 | 1.35 | - |
-| 81626 | Rathmoy Pumping Station | 2010-03-09 | 88.3 | 0.0 | 5006 | 0.85 | 0.98 | - |
-| 81613 | Gortnahoe Waste Water Treatm | 2005-08-18 | 99.3 | 0.0 | 5708 | 0.86 | 0.97 | - |
-| 81615 | Rosegreen Reservoir | 2010-05-21 | 99.1 | 0.0 | 5293 | 0.86 | 1.44 | 2019 |
-| 81601 | Cappaghnagarrane Reservoir | 2005-10-26 | 99.8 | 0.0 | 5807 | 0.86 | 0.97 | 2012,2022,2024,2025 |
-| 81603 | Knockmealdown Mts. Water Tre | 2005-11-29 | 99.1 | 27.0 | 5294 | 0.87 | 1.76 | - |
-| 81608 | Fethard Town Reservoir | 2005-10-26 | 99.7 | 0.0 | 5660 | 0.88 | 0.92 | 2019 |
-| 81614 | Rossadrehid Reservoir | 2005-08-09 | 99.7 | 0.0 | 5673 | 0.88 | 1.64 | - |
-| 81616 | Killough Hill Reservoir | 2010-06-02 | 91.0 | 0.0 | 5614 | 0.88 | 0.83 | 2019 |
-| 81606 | Garryduff, Ardfinnan | 2010-05-06 | 99.6 | 4.0 | 5421 | 0.89 | 1.11 | - |
-| 81610 | Ballymacarbry Council Depot | 2005-11-30 | 99.8 | 0.0 | 5649 | 0.89 | 1.19 | - |
-| 81607 | Kilcoran Depot | 2005-11-29 | 99.8 | 0.0 | 5452 | 0.91 | 1.22 | - |
-| 81602 | New Inn (Jamestown) | 2005-11-29 | 99.8 | 0.0 | 5532 | 0.91 | 0.89 | 2023 |
-| 81609 | Knocklofty Bridge | 2005-11-29 | 99.6 | 0.0 | 5584 | 0.91 | 1.02 | - |
-| 81635 | Clogheen Wastewater Treatmen | 2020-08-08 | 99.7 | 0.0 | 2171 | 0.92 | 1.15 | - |
+| 81623 | Cashel Wastewater Treatment  | 2005-10-13 | 99.9 | 0.0 | 5643 | 0.82 | 0.91 | - |
+| 81605 | Cahir Wastewater Treatment P | 2005-11-29 | 99.7 | 0.0 | 5613 | 0.85 | 1.0 | - |
+| 81630 | Dundrum Reservoir | 2010-06-02 | 99.2 | 0.0 | 5335 | 0.85 | 1.22 | low_corr: 2021 |
+| 81614 | Rossadrehid Reservoir | 2005-08-09 | 99.7 | 0.0 | 5617 | 0.85 | 1.49 | - |
+| 81611 | Knocknaree Nire Site | 2005-11-30 | 99.8 | 2.0 | 5731 | 0.86 | 0.92 | low_corr: 2021 |
+| 81613 | Gortnahoe Waste Water Treatm | 2005-08-18 | 99.3 | 0.0 | 5669 | 0.87 | 1.07 | - |
+| 81608 | Fethard Town Reservoir | 2005-10-26 | 99.7 | 0.0 | 5610 | 0.87 | 1.01 | low_corr: 2019 |
+| 81601 | Cappaghnagarrane Reservoir | 2005-10-26 | 99.8 | 0.0 | 5802 | 0.87 | 1.06 | low_corr: 2012,2022,2024,2025 |
+| 81621 | Stooke Reservoir | 2010-05-21 | 99.8 | 0.0 | 5442 | 0.88 | 1.27 | low_corr: 2017 |
+| 81632 | Tournanena | 2018-08-08 | 99.9 | 1.0 | 2579 | 0.88 | 0.93 | ratio_outlier: 2020 |
+| 81625 | Templetouhy Reservoir | 2010-03-09 | 88.9 | 0.0 | 5177 | 0.89 | 0.98 | - |
+| 81636 | Feddans | 2020-08-28 | 99.9 | 0.0 | 2179 | 0.89 | 1.11 | - |
+| 81616 | Killough Hill Reservoir | 2010-06-02 | 91.0 | 0.0 | 5602 | 0.89 | 0.82 | low_corr: 2019; ratio_outlier: 2020 |
+| 81615 | Rosegreen Reservoir | 2010-05-21 | 99.1 | 0.0 | 5293 | 0.89 | 1.09 | low_corr: 2019; step_bias: 2020,2021,2022,2023,2024,2025,2026 |
+| 81607 | Kilcoran Depot | 2005-11-29 | 99.8 | 0.0 | 5434 | 0.89 | 1.03 | - |
+| 81602 | New Inn (Jamestown) | 2005-11-29 | 99.8 | 0.0 | 5532 | 0.89 | 0.88 | - |
+| 81619 | Templemore Water Treatment P | 2010-03-15 | 88.8 | 0.0 | 5471 | 0.9 | 1.15 | low_corr: 2019,2024 |
+| 81603 | Knockmealdown Mts. Water Tre | 2005-11-29 | 99.1 | 27.0 | 5291 | 0.9 | 1.57 | - |
+| 81626 | Rathmoy Pumping Station | 2010-03-09 | 88.3 | 0.0 | 5004 | 0.91 | 1.04 | ratio_outlier: 2019 |
+| 81612 | Tooreen West Nire Site | 2005-11-30 | 99.7 | 0.0 | 5484 | 0.92 | 1.26 | - |
+| 81606 | Garryduff, Ardfinnan | 2010-05-06 | 99.6 | 4.0 | 5421 | 0.92 | 0.99 | - |
+| 81610 | Ballymacarbry Council Depot | 2005-11-30 | 99.8 | 0.0 | 5645 | 0.93 | 1.02 | - |
+| 81609 | Knocklofty Bridge | 2005-11-29 | 99.6 | 0.0 | 5571 | 0.94 | 1.04 | - |
+| 81635 | Clogheen Wastewater Treatmen | 2020-08-08 | 99.7 | 0.0 | 2170 | 0.94 | 1.06 | - |
 
 **Water balance check (Clonmel 16011, 2,144 km²).** QC'd gauge-mean annual rainfall against runoff depth from
 Hydro-Data discharge:
@@ -113,15 +117,15 @@ Hydro-Data discharge:
 | 2016 | 993 | 685 | 0.69 | 307 |
 | 2017 | 1050 | 637 | 0.61 | 413 |
 | 2018 | 1183 | 821 | 0.69 | 363 |
-| 2019 | 1162 | 817 | 0.7 | 345 |
-| 2020 | 1227 | 903 | 0.74 | 323 |
-| 2021 | 1108 | 679 | 0.61 | 428 |
-| 2022 | 1240 | 697 | 0.56 | 543 |
-| 2023 | 1372 | 829 | 0.6 | 543 |
-| 2024 | 1123 | 654 | 0.58 | 469 |
-| 2025 | 1217 | 689 | 0.57 | 527 |
+| 2019 | 1206 | 817 | 0.68 | 389 |
+| 2020 | 1246 | 903 | 0.73 | 342 |
+| 2021 | 1075 | 679 | 0.63 | 396 |
+| 2022 | 1199 | 697 | 0.58 | 502 |
+| 2023 | 1305 | 829 | 0.64 | 476 |
+| 2024 | 1095 | 654 | 0.6 | 440 |
+| 2025 | 1189 | 689 | 0.58 | 500 |
 
-Mean runoff coefficient **0.63**, mean loss **425 mm/yr**. That is in line with
+Mean runoff coefficient **0.64**, mean loss **416 mm/yr**. That is in line with
 Irish actual evapotranspiration (roughly 400-450 mm), so the QC'd gauge mean is a credible catchment rainfall.
 Using the *median* of gauges instead gives coefficients near 1.0, because the median of intermittent hourly rain
 is biased low. Use means, or areal weighting, not medians.
@@ -135,8 +139,9 @@ several hours to about a day. That is enough to be useful, and HARMONIE (+48 h) 
   onwards, CC BY 4.0, already in our archive, and the water balance closes after QC.
 - *Weaknesses:* all unchecked (code 254). There are impossible spikes (e.g. Knockmealdown 81603 at 1,558 mm in
   15 min in 2025, Garryduff 81606 at 1,850 mm). Some gauges have bad periods, and some have persistent bias:
-  Rosegreen 81615 reads about 2x its neighbours since 2019 and is not caught by the correlation filter, so it
-  needs a ratio check. Sites are low-lying (treatment plants, reservoirs), so the uplands (Galtees,
+  Rosegreen 81615 reads about 2x its neighbours from 2019, now caught by the step-change check. Several gauges
+  fail together in 2019, which may be a network-wide problem that year. Sites are low-lying (treatment plants,
+  reservoirs), so the uplands (Galtees,
   Knockmealdowns, Comeraghs) are under-sampled.
 - *Verdict:* **use the OPW gauges as the primary observed-rainfall input for the Suir**, with automated QC
   (spike, neighbour-correlation and neighbour-ratio checks) built into the transform. Cross-check against

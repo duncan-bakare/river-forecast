@@ -14,13 +14,15 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "src"))
+from river_forecast.features import rain_qc
+
 CUR = pathlib.Path(sys.argv[1]).as_posix()
 OUT = pathlib.Path(__file__).resolve().parents[1] / "docs" / "phase1"
 OUT.mkdir(parents=True, exist_ok=True)
 HD = f"{CUR}/opw_hydrodata/snapshot=*"
 RT = f"{CUR}/opw_realtime"
 SPIKE_MM_15MIN = 50.0  # no credible Irish 15-min total gets near this
-MIN_R_VS_NEIGHBOURS = 0.6
 CLONMEL_AREA_KM2 = 2143.97  # Hydro-Data layer metadata
 
 db = duckdb.connect()
@@ -182,24 +184,27 @@ qc = q(f"""select station_no, min(timestamp)::date first,
                   sum((value > {SPIKE_MM_15MIN})::int) spikes_gt_50mm
            from read_parquet('{HD}/param=Precip/*.parquet') group by 1""")
 D = daily[daily.n >= 90].pivot(index="d", columns="station_no", values="mm")
+coords = {r.station_no: (r.lat, r.lon) for r in gauges.itertuples()}
+flags = rain_qc.flag_gauge_years(D, coords)
+D_raw = D.copy()
+D = rain_qc.apply_flags(D, flags)
+nbs = rain_qc.neighbours({k: v for k, v in coords.items() if k in D.columns})
 stats = []
-removed = []
 for s in D:
-    g = pd.DataFrame({"x": D[s], "o": D.drop(columns=s).median(axis=1)}).dropna()
-    yearly = {y: v.x.corr(v.o) for y, v in g.groupby(g.index.year) if len(v) > 60}
-    bad_years = [y for y, r in yearly.items() if r < MIN_R_VS_NEIGHBOURS]
-    removed += [(s, y) for y in bad_years]
-    ok = g[~g.index.year.isin(bad_years)]
+    ref = D[nbs[s]].median(axis=1)
+    g = pd.DataFrame({"x": D[s], "o": ref}).dropna()
+    raw = pd.DataFrame({"x": D_raw[s], "o": ref}).dropna()
+    f = flags[flags.station_no == s]
     stats.append(
         {
             "station_no": s,
-            "days_complete": len(g),
-            "r_vs_others": round(ok.x.corr(ok.o), 2),
-            "ratio_vs_others": round(ok.x.sum() / ok.o.sum(), 2),
-            "bad_years": ",".join(map(str, bad_years)) or "-",
+            "days_complete": len(raw),
+            "r_vs_neighbours": round(g.x.corr(g.o), 2),
+            "ratio_vs_neighbours": round(g.x.sum() / g.o.sum(), 2),
+            "flagged_years": "; ".join(f"{r}: {','.join(map(str, sorted(v.year)))}" for r, v in f.groupby("reason"))
+            or "-",
         }
     )
-    D.loc[D.index.year.isin(bad_years), s] = np.nan
 st = gauges.merge(qc, on="station_no").merge(pd.DataFrame(stats), on="station_no")
 st["station_name"] = st.station_name.str.slice(0, 28)
 st["first"] = st["first"].astype(str).str[:10]
@@ -210,11 +215,21 @@ md(f"**{qc.pct_provisional.mean():.1f}% of values are quality code 254 (unchecke
 md("these rain records, so we have to.")
 md()
 md(
-    f"QC applied: drop 15-min values > {SPIKE_MM_15MIN:.0f} mm (physically implausible), and drop gauge-years whose daily"
+    f"QC (`river_forecast.features.rain_qc`): drop 15-min values > {SPIKE_MM_15MIN:.0f} mm, then compare each gauge-year with"
 )
-md(f"correlation with the median of the other gauges is < {MIN_R_VS_NEIGHBOURS} ({len(removed)} gauge-years removed).")
+md(
+    f"the median of its {rain_qc.N_NEIGHBOURS} nearest gauges and flag: daily r < {rain_qc.MIN_CORR} (`low_corr`); a step change of"
+)
+md(
+    f">= {rain_qc.STEP_FACTOR}x in the gauge/neighbour ratio lasting >= {rain_qc.STEP_MIN_YEARS} years (`step_bias`, the Rosegreen case);"
+)
+md(
+    f"or a single year > {rain_qc.RATIO_OUTLIER}x off the gauge's own typical ratio (`ratio_outlier`). It iterates, so a bad"
+)
+md("gauge doesn't get its neighbours flagged. Consistently wet upland gauges are *not* flagged.")
+md(f"**{len(flags)} gauge-years flagged** ({flags.reason.value_counts().to_dict()}).")
 md()
-table(st.drop(columns=["lat", "lon"]).sort_values("r_vs_others"))
+table(st.drop(columns=["lat", "lon"]).sort_values("r_vs_neighbours"))
 P = D.mean(axis=1)
 flow = (
     q(f"""select date_trunc('day', timestamp) d, avg(value) q
@@ -246,9 +261,7 @@ H = q(f"""select station_no, date_trunc('hour', timestamp) t,
           from read_parquet('{HD}/param=Precip/*.parquet') where timestamp >= '2011-01-01' group by all""").pivot(
     index="t", columns="station_no", values="mm"
 )
-for s, y in removed:
-    H.loc[H.index.year == y, s] = np.nan
-Ph = H.mean(axis=1)
+Ph = rain_qc.catchment_mean(H, flags)
 Qh = (
     q(f"""select date_trunc('hour', timestamp) t, avg(value) q
            from read_parquet('{HD}/param=Q/station=16011.parquet') where timestamp >= '2011-01-01' group by 1""")
@@ -269,8 +282,9 @@ md("- *Strengths:* 24 gauges spread over the catchment, 15-min, real-time (same 
 md("  onwards, CC BY 4.0, already in our archive, and the water balance closes after QC.")
 md("- *Weaknesses:* all unchecked (code 254). There are impossible spikes (e.g. Knockmealdown 81603 at 1,558 mm in")
 md("  15 min in 2025, Garryduff 81606 at 1,850 mm). Some gauges have bad periods, and some have persistent bias:")
-md("  Rosegreen 81615 reads about 2x its neighbours since 2019 and is not caught by the correlation filter, so it")
-md("  needs a ratio check. Sites are low-lying (treatment plants, reservoirs), so the uplands (Galtees,")
+md("  Rosegreen 81615 reads about 2x its neighbours from 2019, now caught by the step-change check. Several gauges")
+md("  fail together in 2019, which may be a network-wide problem that year. Sites are low-lying (treatment plants,")
+md("  reservoirs), so the uplands (Galtees,")
 md("  Knockmealdowns, Comeraghs) are under-sampled.")
 md("- *Verdict:* **use the OPW gauges as the primary observed-rainfall input for the Suir**, with automated QC")
 md("  (spike, neighbour-correlation and neighbour-ratio checks) built into the transform. Cross-check against")
