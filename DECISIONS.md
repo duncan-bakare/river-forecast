@@ -261,3 +261,118 @@ Newest last. Each entry: what, why, alternatives.
   together in 2019, so that year may have had a network-wide problem. With the fix, the Clonmel water-balance
   losses for 2022–2025 fall from 469–543 to 440–502 mm/yr (mean coefficient 0.64, loss 416 mm/yr).
   The upward drift that Rosegreen's bias caused is mostly gone.
+
+## D18. Phase 2 forecast horizons: 6, 12, 24 and 48 h, from measured travel times
+- **Measurement:** For the 40 largest independent Clonmel peaks since 2006 (hourly levels, checked plus provisional),
+  the time from each upstream station's maximum in the window peak −72 h to peak +12 h to Clonmel's peak. Median
+  hours (p25–p75): Knocklofty 16139 **4** (3–5), Newcastle 16137 **7** (−1 to 8), Caher Park 16009 **9** (0–13),
+  Athlummon 16001 9 (0–28), Anner 16010 12, New Bridge 16008 **13** (−2 to 23), Killardry 16007 **15** (8–21),
+  Tar Bridge 16012 **17** (9–23), Rathkennan 16003 17.5 (2–27), Clobanna 16051 23, Ballinaclogh 16006 23.5,
+  Aughnagross 16005 24, Fourmilewater 16013 **27** (21–34). Phase 1 also gave about 5 h from catchment rain to the rise
+  at Clonmel, and 24-h rain correlated best with flow about 15 h later.
+- **Choice:** 6 h (main-stem gauges plus the rain-to-rise lag), 12 h (Caher Park and New Bridge), 24 h (the longest
+  lead the gauge network can supply: Aherlow, Tar, Clodiagh, Multeen and Nire at 15–27 h), and 48 h, which is
+  **deliberately beyond every travel time**, to show where the gauge network stops helping. 48 h also matches
+  HARMONIE's range.
+- **Caveats:** The spreads are wide (beyond Knocklofty, interquartile ranges are mostly 12–28 h), so the horizons are indicative.
+  Beakstown 16002 and Thurles 16004 gave *negative* lags, i.e. a maximum after Clonmel's peak, which is not
+  physical for one flood wave. That is probably a different peak inside the 84-hour window. Not investigated.
+  Anner joins the Suir downstream of Clonmel, so it is not a model input. The travel-time table came from exploratory
+  queries and is **not scripted in the repo**. This entry is its record.
+
+## D19. Phase 2 design (code: `river_forecast.model`, `analysis/phase2.py`; report: `docs/phase2/report.md`)
+- **Target:** The change in Clonmel level, y(t+h) − y(t), so trees never have to extrapolate absolute levels (the
+  record's highest levels sit above anything else in training).
+- **Models:** (1) persistence. (2) an upstream-lag linear model (ridge OLS on Clonmel's and 8 upstream stations'
+  6/12/24 h level changes, no rain), which falls back to persistence if any input is missing. (3) LightGBM on
+  all upstream levels and changes, QC'd catchment rain (D17) summed over 1 h–30 d, and season. Intervals are 90%
+  conformalised quantile regression: 5% and 95% quantile models, calibrated on 2019–2021, with separate
+  corrections below and above 15.74 m. Rain is observed only up to issue time. There is no rainfall forecast,
+  because none is archived yet. A separate LightGBM fed *observed future* rain is reported as an upper bound for
+  perfect rain forecasts. It is not a deployable result.
+- **Splits (time only):** train < 2019, calibration 2019–2021 (early stopping and conformal), test ≥ 2022 (checked
+  labels to the end of 2025, provisional labels in 2026).
+- **Flood backtests:** The 8 largest independent peaks since 2006 (found from the data, windows −5 d/+3 d) are cut out of
+  training and calibration: 2015-12-30 (18.257 m), 2009-11-20, 2009-01-31, 2014-02-06, 2021-02-24, 2019-11-22,
+  2022-11-02 and 2008-01-11. The 2000 and 2004 floods (2nd and 3rd on record) pre-date the rain gauges.
+  **Caveat:** only 2022-11 is later than the training data, with two events in calibration and five in the
+  training period. So five of eight backtests are held-out *events* but not forward-in-time forecasts, because
+  the model has seen later winters. Treat them as optimistic relative to genuine real-time use.
+- **Checked vs provisional:** Training and calibration labels are **checked hours only**. Inputs go through the same
+  preprocessing whatever their status (hourly means, spike removal above 1.0 m/h, rain QC), so serving data
+  sees the pipeline the model trained on. Provisional-label hours are scored separately. Clonmel's provisional data
+  is almost entirely 2026 and **has no flood in it** (maximum 15.85 m, below the 16.70 m threshold), so that
+  set tests label noise at low and medium flows, not flood skill.
+- **Thresholds:** OPW's statistical levels for Clonmel (`alarmlevel.json`): 1%-exceedance (16.702 m) and median annual
+  maximum (16.914 m). They are **not flood-warning levels**.
+- **Known biases in the set-up:** (a) Hourly means are labelled at the start of the hour, so a "6 h" forecast is
+  really about 5.5 h from the last data. All leads are overstated by roughly half an hour. (b) The conformal
+  calibration set excludes the biggest floods, which probably makes the high-flow correction too small (not
+  verified; the calibration counts per regime are not saved).
+
+## D20. Phase 2 results: where the models do and do not beat persistence
+(MSE skill vs persistence; 0 = no better. NSE and KGE are of the forecast level. Full tables: `docs/phase2/report.md`.)
+
+| set | h | NSE pers / lin / LGBM | KGE pers / lin / LGBM | skill lin / LGBM [LGBM 5–95%] |
+|---|---|---|---|---|
+| test, checked | 6 | 0.982 / 0.991 / 0.997 | 0.991 / 0.996 / 0.998 | 0.52 / 0.85 [0.83, 0.87] |
+| test, checked | 12 | 0.952 / 0.968 / 0.981 | 0.976 / 0.984 / 0.986 | 0.34 / 0.61 [0.58, 0.66] |
+| test, checked | 24 | 0.886 / 0.907 / 0.932 | 0.943 / 0.953 / 0.944 | 0.18 / 0.41 [0.38, 0.44] |
+| test, checked | 48 | 0.780 / 0.794 / 0.822 | 0.890 / 0.896 / **0.862** | 0.06 / 0.19 [0.15, 0.23] |
+| floods (8) | 6 | 0.947 / 0.962 / 0.992 | 0.972 / 0.977 / 0.996 | 0.28 / 0.85 [0.82, 0.88] |
+| floods (8) | 12 | 0.828 / 0.894 / 0.936 | 0.915 / 0.948 / 0.969 | 0.38 / 0.63 [0.59, 0.68] |
+| floods (8) | 24 | 0.519 / 0.673 / 0.684 | 0.775 / 0.847 / 0.857 | 0.32 / 0.34 [0.23, 0.46] |
+| floods (8) | 48 | −0.163 / −0.017 / −0.067 | 0.507 / 0.559 / 0.555 | 0.13 / **0.08 [−0.05, 0.21]** |
+| provisional 2026 | 24 | 0.679 / 0.716 / 0.731 | 0.783 / 0.810 / 0.813 | 0.11 / **0.16 [−0.09, 0.24]** |
+| provisional 2026 | 48 | 0.620 / 0.618 / 0.587 | 0.751 / 0.734 / 0.721 | **−0.01 / −0.09** |
+
+- **Plainly: no better than persistence in these cases.** At 48 h, LightGBM is not distinguishable from
+  persistence on the flood backtests (interval spans 0) and is **worse** than persistence on provisional 2026
+  data, and its KGE is lower than persistence's on the checked test set too. At 24 h, its skill is not
+  distinguishable from zero on provisional data. The linear model is at or below persistence at 48 h on provisional
+  data. The gain from 24 h onward is small and fragile.
+- **Why:** The perfect-rain bound reaches skill 0.79–0.82 at 24–48 h on the checked test set (LightGBM actually
+  scored 0.41 and 0.19), so nearly all the missing skill at long leads is **future rainfall**, which the gauge
+  network can't provide. Only 6–12 h are gauge-limited. This points to the HARMONIE archive as the next lever.
+- **Peak timing and size (8 floods, median absolute error).** Persistence's peak is the observed peak shifted by h, by
+  construction: timing = h, size error 0. It is therefore *not* beaten on size. LightGBM's median timing error is
+  3.5, 8, 15 and 43.5 h at 6, 12, 24 and 48 h, with median size errors of 0.03, 0.08, 0.11 and 0.25 m. It
+  anticipates the rise by hours at 6–24 h, but at 48 h its timing is within 5 h of persistence's, and it
+  underestimates the peak at 48 h in all 8 events (by 0.09–0.46 m). The figures show it still lags sharp
+  rising limbs at 12–24 h (e.g. the first 2015 rise).
+- **Exceedance detection** (onsets caught at lead ≥ h, ±3 h tolerance; test period plus backtests):
+  - 16.702 m (16 onsets): persistence 2/1/0/0 at 6/12/24/48 h, linear 13/8/2/0, LightGBM **16/9/3/0**. Median
+    lead 0 / 9 / 12 h. False-alarm episodes at 12 h in the test period: 0 / 8 / 3.
+  - 16.914 m (12 onsets): persistence 1/0/0/0, linear 8/8/0/0, LightGBM 10/5/0/0. The linear model catches more at
+    12 h here (8 vs 5), and with 12 onsets the difference is small.
+  - **No model detects any onset 48 h ahead, and only 3 of 16 (LightGBM) 24 h ahead.** Detection leads of
+    useful size (≥ 12 h) are rare.
+- **Prediction intervals (nominal 90%):** coverage is 0.86–0.87 on the checked test set (slightly low), but **falls where it
+  matters**: 0.61–0.79 on the flood backtests (0.61 at 48 h), 0.70–0.86 for levels above 15.74 m, and 0.61 and
+  0.77 at 6 and 12 h on provisional data. Mean widths are 0.04, 0.13, 0.32 and 0.52 m on the test set, but the intervals
+  can't be trusted in floods. In the 2015 figure, the observed rises on 29–30 Dec sit above the 24 h interval.
+- **Net:** a usable, well-calibrated-on-average 6–12 h model for Clonmel, with real gains in floods at those leads. Beyond
+  24 h it is essentially persistence plus rainfall we don't yet have. **This is not suitable for publication as a
+  flood forecast** (see also the "not an official flood warning" statement in the README).
+
+## D21. Problems found on review of the Phase 2 run, and what to do next
+1. **The upstream-linear baseline is handicapped.** It requires all 8 upstream inputs at all lags and falls back to
+   persistence otherwise. That happens in 32% of all hours, and in **4 of 8 backtest events (2014, 2015, 2019,
+   2022) it produced exactly persistence** (timing = h, size 0.000, visible in the figures). So its
+   skill, and LightGBM's margin over it, are mismeasured. Fix: fit on a robust subset or impute missing
+   stations, then re-run. This is the first thing to do before quoting linear-vs-LightGBM comparisons.
+2. **Intervals under-cover in floods** (D20). Calibrate the high-flow regime on more data (include flood
+   periods via blocked cross-validation instead of cutting them out), then recheck.
+3. **Exceedance onsets are slightly contaminated.** Persistence "catches" 2 of 16 onsets at 6 h, which is impossible for a
+   true onset. The onset search runs on a series with non-scored periods dropped, so a splice can create a spurious
+   onset. Counts are likely off by one or two. Fix and re-run. Also, the ±3 h tolerance means a nominal 6 h
+   lead is at least 3 h in practice.
+4. **Trained models are not persisted.** Only the report, figures and CSVs are saved (`docs/phase2/`), and the
+   hourly frame is cached locally. Reproducing takes about 14 minutes. The next run should save models and
+   calibration counts.
+5. **No rainfall forecasts yet.** The HARMONIE archive began on 2026-10-24, so it holds only days of forecasts, far
+   too few to train on. Options for Phase 3: keep archiving and evaluate in a few months; meanwhile use Met
+   Éireann's documented historical data if a forecast reanalysis can be found; or run with observed rain as a
+   proxy and say so.
+6. **The provisional test is weak** (no floods, 4 months). Revisit once OPW has checked more recent data
+   and once the next winter's floods exist.
