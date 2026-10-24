@@ -1,7 +1,7 @@
 """Transform Lambda: raw -> curated Parquet. Event: {"job": "hydrodata" | "realtime"}.
 
 curated/opw_hydrodata/snapshot=YYYY-MM-DD/param=P/station=NNNNN.parquet
-curated/opw_hydrodata/snapshot=YYYY-MM-DD/stations.parquet
+curated/opw_hydrodata/snapshot=YYYY-MM-DD/stations/param=P.parquet
 curated/opw_realtime/sensor=S/station=NNNNN.parquet
 """
 
@@ -30,8 +30,10 @@ CSV_KEY = re.compile(r"raw/opw_csv/period=(\w+)/date=([\d-]+)/station=(\d+)/sens
 
 def _parquet_bytes(table):
     buf = io.BytesIO()
-    # snappy: the AWS SDK for pandas layer's pyarrow is built without zstd.
-    pq.write_table(table, buf, compression="snappy")
+    opts = parquet.WRITE_OPTIONS
+    if table.schema != parquet.SCHEMA:  # metadata tables: plain defaults
+        opts = {"compression": opts["compression"]}
+    pq.write_table(table, buf, **opts)
     return buf.getvalue()
 
 
@@ -39,7 +41,9 @@ def _snapshots(store, prefix):
     return sorted({m.group(1) for k in store.list(prefix) if (m := re.search(r"snapshot=([\d-]+)/", k))})
 
 
-def hydrodata(store, snapshot=None):
+def hydrodata(store, snapshot=None, params=None):
+    """Convert one raw snapshot (default: latest). `params` limits the run to some
+    parameters so a refresh can be split across invocations."""
     snapshot = snapshot or _snapshots(store, HD_RAW)[-1]
     written, meta_rows = 0, []
     for key in store.list(f"{HD_RAW}snapshot={snapshot}/param="):
@@ -47,6 +51,8 @@ def hydrodata(store, snapshot=None):
         if not m:
             continue
         _, param, station = m.groups()
+        if params and param not in params:
+            continue
         table, meta = parquet.hydrodata_zip_to_table(store.get(key), param, key)
         meta_rows.append(
             {
@@ -68,11 +74,14 @@ def hydrodata(store, snapshot=None):
             "application/vnd.apache.parquet",
         )
         written += 1
-    store.put(
-        f"{HD_CURATED}snapshot={snapshot}/stations.parquet",
-        _parquet_bytes(pa.Table.from_pylist(meta_rows)),
-        "application/vnd.apache.parquet",
-    )
+        del table
+        pa.default_memory_pool().release_unused()
+    for param in sorted({r["param"] for r in meta_rows}):
+        store.put(
+            f"{HD_CURATED}snapshot={snapshot}/stations/param={param}.parquet",
+            _parquet_bytes(pa.Table.from_pylist([r for r in meta_rows if r["param"] == param])),
+            "application/vnd.apache.parquet",
+        )
     # Curated snapshots are rebuildable from raw; keep only the newest few.
     old = _snapshots(store, HD_CURATED)[:-KEEP_CURATED_SNAPSHOTS]
     for snap in old:
