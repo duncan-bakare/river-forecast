@@ -2,10 +2,10 @@
 name = "river-forecast"
 version = "0.1.0"
 requires-python = ">=3.12"
-# Runtime is stdlib + boto3 (provided by the Lambda Python runtime).
+# Ingest runtime is stdlib + boto3. Transform also needs pyarrow/numpy (AWS SDK for pandas layer).
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "boto3", "moto[s3]>=5", "ruff"]
+dev = ["pytest>=8", "boto3", "moto[s3]>=5", "ruff", "pandas", "pyarrow", "numpy", "duckdb"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
