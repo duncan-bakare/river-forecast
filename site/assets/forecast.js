@@ -69,10 +69,17 @@ function renderTable(d) {
     const interval = text("td", `${lg.lo_m.toFixed(2)} to ${lg.hi_m.toFixed(2)} m`, "num");
     const lin = text("td", m(f.linear && f.linear.level_m), "num");
     const pers = text("td", m(f.persistence.level_m), "num");
-    const trust = document.createElement("td");
-    for (const line of trustNote(f.verification)) trust.append(text("p", line, "small"));
-    tr.append(when, lead, central, interval, lin, pers, trust);
+    tr.append(when, lead, central, interval, lin, pers);
     body.append(tr);
+    // The track record sits in a full-width row under the forecast it belongs to, so it never gets squeezed.
+    const note = document.createElement("tr");
+    note.className = "note";
+    const cell = document.createElement("td");
+    cell.colSpan = 6;
+    cell.append(text("strong", `Track record at +${f.horizon_h} h: `, "small"));
+    cell.append(document.createTextNode(trustNote(f.verification).join(" ")));
+    note.append(cell);
+    body.append(note);
   }
   $("fc-table").hidden = false;
 }
