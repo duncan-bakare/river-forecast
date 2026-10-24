@@ -30,7 +30,8 @@ CSV_KEY = re.compile(r"raw/opw_csv/period=(\w+)/date=([\d-]+)/station=(\d+)/sens
 
 def _parquet_bytes(table):
     buf = io.BytesIO()
-    pq.write_table(table, buf, compression="zstd")
+    # snappy: the AWS SDK for pandas layer's pyarrow is built without zstd.
+    pq.write_table(table, buf, compression="snappy")
     return buf.getvalue()
 
 
