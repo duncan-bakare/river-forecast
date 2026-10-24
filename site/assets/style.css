@@ -140,6 +140,6 @@ ul.warnings { padding-left: 1.1rem; }
 /* Narrow screens: scroll sideways rather than squeeze the chart and tables until they are unreadable. */
 .chart-box { overflow-x: auto; }
 .scroll > table { min-width: 46rem; }
-.scroll > table.wide { min-width: 54rem; }
+.scroll > table.wide { min-width: 40rem; }
 @media (max-width: 40rem) { svg.chart { min-width: 40rem; } }
-table.wide td:last-child, table.wide th:last-child { min-width: 19rem; }
+tr.note td { border-top: 0; padding-top: 0; font-size: 0.875rem; color: var(--muted); }
