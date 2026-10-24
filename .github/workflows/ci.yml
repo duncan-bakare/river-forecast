@@ -22,8 +22,8 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install -e ".[dev]"
-      - run: ruff check src tests scripts
-      - run: ruff format --check src tests scripts
+      - run: ruff check src tests scripts analysis
+      - run: ruff format --check src tests scripts analysis
       - run: pytest -q
 
   terraform-check:

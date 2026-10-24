@@ -9,7 +9,7 @@ real-time water levels and Met Éireann weather forecasts.
 
 ## Status
 
-Phase 0, ingestion: **live**. Hourly and daily jobs archive raw data for both catchments to S3. See
+Phase 0 (ingestion) and Phase 1 (history, curated Parquet, analysis) are **done**. Hourly and daily jobs archive raw data for both catchments to S3. See
 [PROGRESS.md](PROGRESS.md) for numbers and [DECISIONS.md](DECISIONS.md) for why things are the way they are.
 
 ## Data sources and attribution
@@ -27,7 +27,7 @@ Phase 0, ingestion: **live**. Hourly and daily jobs archive raw data for both ca
 
 When forecasts are published, current Met Éireann warnings will be shown alongside them.
 
-## Architecture (Phase 0)
+## Architecture
 
 ```
 EventBridge rules ──> Lambda river-forecast-ingest (Python 3.12, arm64, stdlib + boto3)
@@ -59,6 +59,31 @@ raw/met_obs/date=YYYY-MM-DD/station=SLUG/fetched=HHMMSSZ.json.gz
 
 Everything AWS-side is tagged `project=river-forecast`.
 
+Curated Parquet (D13), queryable with DuckDB:
+
+```
+curated/opw_hydrodata/snapshot=YYYY-MM-DD/param={S,Q,Precip}/station=NNNNN.parquet
+curated/opw_hydrodata/snapshot=YYYY-MM-DD/stations/param=P.parquet
+curated/opw_realtime/sensor={0001,OD}/station=NNNNN.parquet
+```
+
+Every row has `quality_code` (OPW's code, null for real-time) and `quality_status`
+(`checked` / `provisional` / `unreliable` / `unusable` / `missing` / `undocumented`).
+
+```python
+import duckdb
+duckdb.sql("select * from read_parquet('curated/opw_hydrodata/snapshot=*/param=S/station=16011.parquet') "
+           "where quality_status = 'checked' limit 5")
+```
+
+Raw Hydro-Data ZIPs live at `raw/opw_hydrodata/snapshot=YYYY-MM-DD/param=P/station=N/<file>.zip` (byte-for-byte).
+They are refreshed monthly; older snapshots move to Glacier IR, then Deep Archive (D14).
+
+## Phase 1 results
+
+See [docs/phase1/report.md](docs/phase1/report.md). The main modelling target is the **Suir at Clonmel**
+(DECISIONS D16).
+
 ## Repo layout
 
 ```
@@ -67,7 +92,9 @@ src/river_forecast/ingest/        http, parse, validate, jobs, Lambda handler, s
 tests/                            pytest (fixtures are real payloads captured 2026-10-24)
 scripts/upload_month_snapshot.py  one-off upload of a local OPW month-CSV snapshot
 infra/bootstrap/                  budget, billing alarm, TF state bucket, GitHub OIDC + deploy role (applied locally)
-infra/main/                       data bucket, ingest Lambda, schedules, alarms (deployed by CI)
+infra/main/                       data bucket, ingest + transform Lambdas, schedules, alarms (deployed by CI)
+src/river_forecast/transform/     raw -> curated Parquet (Lambda, AWS SDK for pandas layer)
+analysis/phase1.py                Phase 1 analysis -> docs/phase1/
 ```
 
 ## Development
