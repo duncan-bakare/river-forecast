@@ -92,6 +92,10 @@ Newest last. Each entry: what, why, alternatives.
 ## D9. Phase definitions
 - **What:** CLAUDE.md names only Phase 0 ("ingestion for both catchments"). Phase 0 here means: raw ingestion,
   validation, tests, infra and CI for both catchments. Parquet compaction, modelling and the site come later.
+- **Phase 1** (defined 2026-10-24): full-history acquisition (Hydro-Data), curated Parquet with quality
+  tagging, and a data analysis that decides the modelling target. This covers coverage, the Dodder
+  upstream lag, a Suir rainfall source assessment and a check of the 14 Nov 2025 event. Phase 2 is
+  baseline models.
 
 ## D10. Met Éireann point forecasts: archived by issue time, scheduled (checked 2026-10-24)
 - **Yes, they are archived with issue times for both catchments.** There are 11 points: 3 on the Dodder
@@ -164,3 +168,77 @@ Newest last. Each entry: what, why, alternatives.
 - **Undocumented quality codes:** 99 (S 0.8%, Precip 1.8%) and 96 (Q 4.2%) are not on OPW's quality-codes
   page. They are kept as-is and not interpreted.
 - **Not pulled:** water temperature (`TWater`). It isn't useful for level forecasting and is cheap to add later.
+
+## D13. Curated Parquet with quality code and quality status on every row
+- **What:** Lambda `river-forecast-transform` (AWS SDK for pandas layer v31 for pyarrow/numpy) writes:
+  - `curated/opw_hydrodata/snapshot=D/param={S,Q,Precip}/station=N.parquet` and
+    `.../stations/param=P.parquet` (monthly, after each Hydro-Data pull)
+  - `curated/opw_realtime/sensor={0001,OD}/station=N.parquet` (daily; all raw week and month CSVs merged,
+    with newer files winning on duplicate timestamps)
+- **Columns:** `station_no, param, timestamp (UTC), value, quality_code, quality_status, aggregation_accuracy,
+  unit, source`. `quality_code` is OPW's code, kept as-is (null for the real-time feed, which has none).
+  `quality_status` is derived: `checked` (31, 32, 36, 41, 42, 46, 56), `provisional` (254 and all real-time
+  data), `unreliable` (101), `unusable` (151), `missing` (255, −1 or an empty value) and `undocumented`
+  (e.g. 96, 99). Codes 41/42/46/56 are "inspected but poor/extrapolated" and count as checked, so filter on
+  `quality_code` for stricter use.
+- **Why:** Training wants checked history. Inference has only provisional real-time data. Both need to be
+  visible per row, not per file.
+- **Query engine:** DuckDB over the Parquet (locally, or later in a job), not Athena: no extra infra and no
+  per-query cost. Athena can be added over the same layout if needed.
+- **What went wrong on the way:** (1) The layer's pyarrow is built without zstd, so we use snappy.
+  (2) The first version ran out of memory at 2 GB, from per-row Python strings and decoding whole 89 MB
+  CSVs. It was rewritten with int8 dictionary columns and a streamed header: Clonmel's 2.56 M rows now take
+  1.5 s and 139 MB of Arrow memory. The full snapshot (70 files) converts in 45 s.
+- **Result (2026-10-24):** 70 Hydro-Data files (33 S, 13 Q, 24 Precip; empty series skipped), 68 real-time
+  files, 141 objects, about 296 MB. Each curated Hydro-Data file is about the size of its source ZIP, thanks
+  to delta-encoded timestamps and byte-stream-split floats.
+
+## D14. Lifecycle for old Hydro-Data snapshots
+- **Raw** (`raw/opw_hydrodata/`, objects > 128 KB, i.e. the ZIPs): Glacier Instant Retrieval at 35 days
+  (once the next monthly snapshot exists), Deep Archive at 180 days, and expiry after 5 years. Old snapshots
+  are only needed to audit OPW's revisions, so slow and cheap retrieval is fine. At about 300 MB a month this
+  stays at cents a year.
+- **Curated:** The transform job keeps the newest 2 curated snapshots and deletes older ones. Curated data can
+  be rebuilt from raw. Deleting by job rather than by age-based lifecycle means a failed refresh can never
+  leave us with zero curated snapshots.
+- **Alternatives:** Expire raw snapshots after N months (loses revision history). Keep everything in Standard
+  (about 4x the cost, still small).
+
+## D15. Phase 1 findings (details and figures in `docs/phase1/report.md`, from `analysis/phase1.py`)
+- **Waldron's Bridge → Anglesea Road lag: 30–60 min.** Cross-correlation of 15-min changes peaks at 30 min
+  (r = 0.75). Four events with a rise of at least 0.08 m had peak-to-peak lags of 45, 60, 30 and 60 min
+  (median 52). Caveat: only 5 weeks of autumn real-time data, because Waldron's Bridge has no history on
+  Hydro-Data. Re-run it as the archive grows.
+- **14 Nov 2025 at Anglesea Road: present and complete.** All 384 15-min rows for 13–16 Nov, no gaps, every row
+  code 31 (checked). The level rose through 14 Nov (2.717 → 3.702 m OD) but **peaked at 4.422 m OD at
+  2025-11-15 04:45 UTC**, after midnight. Anyone labelling this "the 14 Nov event" should know the peak is on
+  the 15th. It is the 2nd-highest independent peak since the record began (2021-10-06), behind 27 Jan 2026
+  (4.819 m OD).
+- **Suir rainfall (OPW gauges): usable as the primary observed rainfall, after our own QC.** There are 24
+  gauges at 15-min resolution from 2005/2010, and 97.9% of values are code 254 (unchecked). Problems: impossible
+  spikes (Knockmealdown 81603 1,558 mm and Garryduff 81606 1,850 mm in a single 15-min step), bad periods (13
+  gauge-years with daily r < 0.6 against neighbours), and persistent bias (Rosegreen 81615 reads about 2x its
+  neighbours since 2019). After dropping values > 50 mm/15 min and the bad gauge-years, the gauge-*mean*
+  rainfall closes the Clonmel water balance. The runoff coefficient is 0.56–0.74 (mean 0.63) and losses are
+  about 425 mm/yr over 14 years, consistent with Irish evapotranspiration. Flow at Clonmel starts rising about
+  5 h after catchment rain, and 24-h rain correlates best with flow about 15 h later.
+- **Dodder rainfall:** there are no OPW gauges within 15 km. Only Met Éireann synoptic obs (Casement,
+  Phoenix Park, Dublin Airport) are available, and the current endpoint for those is undocumented (D7.1).
+
+## D16. Recommendation: the Suir, at Clonmel (16011), is the main modelling target
+- **Data:** Clonmel has continuous level from 1953 (97.9% checked) and discharge from 1972 (96.5% checked).
+  Upstream it has 31 more Suir level stations and 12 more flow stations with decades of history, plus 24
+  co-located 15-min rain gauges whose QC'd mean closes the water balance. The Dodder has one archived gauge
+  (Anglesea Road, 5 years, level only, no rating), an upstream gauge with 5 weeks of data, and no
+  catchment rain gauges.
+- **Hydrology:** The Suir responds over hours to a day (rise ~5 h after rain, flow best correlated with 24-h
+  rain ~15 h later), so observed upstream levels and rain carry real predictive lead, and the 48 h of HARMONIE
+  extends it. The Dodder's upstream lead is 30–60 min, so a Dodder forecast is essentially a rainfall-forecast
+  problem with little observed data to learn from.
+- **Relevance:** Clonmel is a flood-defended town with OPW FFWS (Flood Forecasting and Warning System) gauges,
+  and has decades of flood events to train and verify on.
+- **Plan:** Model the Suir first, with Clonmel as the target and Caher Park, New Bridge, Killardry, Anner and
+  Tar as upstream inputs. Keep the Dodder as a secondary, rainfall-driven nowcast. It stays in ingestion so
+  the Waldron's Bridge record accumulates, and is revisited once it has a winter of data.
+- **Alternatives considered:** Dodder-first (more urgent urban flood risk, but too little data to train and
+  verify on). Both equally (splits effort; the Dodder's data won't support it yet).
