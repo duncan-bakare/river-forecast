@@ -1,0 +1,297 @@
+{
+ "type": "FeatureCollection",
+ "crs": {
+  "type": "name",
+  "properties": {
+   "name": "EPSG:4326"
+  }
+ },
+ "features": [
+  {
+   "type": "Feature",
+   "id": 1458,
+   "properties": {
+    "station_ref": "0000001041",
+    "station_name": "Sandy Mills",
+    "sensor_ref": "0001",
+    "region_id": 3,
+    "datetime": "2026-10-24T12:15:00Z",
+    "value": "0.718",
+    "err_code": 99,
+    "url": "/0000001041/0001/",
+    "csv_file": "/data/month/01041_0001.csv"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -7.575758,
+     54.838318
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "id": 896,
+   "properties": {
+    "station_ref": "0000001041",
+    "station_name": "Sandy Mills",
+    "sensor_ref": "0002",
+    "region_id": 3,
+    "datetime": "2026-10-24T12:00:00Z",
+    "value": "8.700",
+    "err_code": 99,
+    "url": "/0000001041/0002/",
+    "csv_file": "/data/month/01041_0002.csv"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -7.575758,
+     54.838318
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "id": 1082,
+   "properties": {
+    "station_ref": "0000001041",
+    "station_name": "Sandy Mills",
+    "sensor_ref": "0003",
+    "region_id": 3,
+    "datetime": "2026-10-24T12:00:00Z",
+    "value": "13.000",
+    "err_code": 99,
+    "url": "/0000001041/0003/",
+    "csv_file": "/data/month/01041_0003.csv"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -7.575758,
+     54.838318
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "id": 1051,
+   "properties": {
+    "station_ref": "0000001041",
+    "station_name": "Sandy Mills",
+    "sensor_ref": "OD",
+    "region_id": 3,
+    "datetime": "2026-10-24T12:15:00Z",
+    "value": "4.373",
+    "err_code": 99,
+    "url": "/0000001041/OD/",
+    "csv_file": "/data/month/01041_OD.csv"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -7.575758,
+     54.838318
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "id": 3061,
+   "properties": {
+    "station_ref": "0000009369",
+    "station_name": "Anglesea Road",
+    "sensor_ref": "0001",
+    "region_id": 13,
+    "datetime": "2026-10-24T12:30:00Z",
+    "value": "0.777",
+    "err_code": 99,
+    "url": "/0000009369/0001/",
+    "csv_file": "/data/month/09369_0001.csv"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -6.230909186299616,
+     53.32788126403148
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "id": 3062,
+   "properties": {
+    "station_ref": "0000009369",
+    "station_name": "Anglesea Road",
+    "sensor_ref": "0002",
+    "region_id": 13,
+    "datetime": "2026-10-24T12:00:00Z",
+    "value": "9.600",
+    "err_code": 99,
+    "url": "/0000009369/0002/",
+    "csv_file": "/data/month/09369_0002.csv"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -6.230909186299616,
+     53.32788126403148
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "id": 3063,
+   "properties": {
+    "station_ref": "0000009369",
+    "station_name": "Anglesea Road",
+    "sensor_ref": "0003",
+    "region_id": 13,
+    "datetime": "2026-10-24T12:00:00Z",
+    "value": "14.210",
+    "err_code": 99,
+    "url": "/0000009369/0003/",
+    "csv_file": "/data/month/09369_0003.csv"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -6.230909186299616,
+     53.32788126403148
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "id": 3107,
+   "properties": {
+    "station_ref": "0000009369",
+    "station_name": "Anglesea Road",
+    "sensor_ref": "0014",
+    "region_id": 13,
+    "datetime": "2026-10-24T12:30:00Z",
+    "value": "31.000",
+    "err_code": 99,
+    "url": "/0000009369/0014/",
+    "csv_file": "/data/month/09369_0014.csv"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -6.230909186299616,
+     53.32788126403148
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "id": 3164,
+   "properties": {
+    "station_ref": "0000009369",
+    "station_name": "Anglesea Road",
+    "sensor_ref": "OD",
+    "region_id": 13,
+    "datetime": "2026-10-24T12:30:00Z",
+    "value": "2.781",
+    "err_code": 99,
+    "url": "/0000009369/OD/",
+    "csv_file": "/data/month/09369_OD.csv"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -6.230909186299616,
+     53.32788126403148
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "id": 2266,
+   "properties": {
+    "station_ref": "0000016011",
+    "station_name": "Clonmel",
+    "sensor_ref": "0001",
+    "region_id": 4,
+    "datetime": "2026-10-24T12:15:00Z",
+    "value": "1.098",
+    "err_code": 99,
+    "url": "/0000016011/0001/",
+    "csv_file": "/data/month/16011_0001.csv"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -7.694598,
+     52.351525
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "id": 2268,
+   "properties": {
+    "station_ref": "0000016011",
+    "station_name": "Clonmel",
+    "sensor_ref": "0002",
+    "region_id": 4,
+    "datetime": "2026-10-24T12:00:00Z",
+    "value": "9.500",
+    "err_code": 99,
+    "url": "/0000016011/0002/",
+    "csv_file": "/data/month/16011_0002.csv"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -7.694598,
+     52.351525
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "id": 2269,
+   "properties": {
+    "station_ref": "0000016011",
+    "station_name": "Clonmel",
+    "sensor_ref": "0003",
+    "region_id": 4,
+    "datetime": "2026-10-24T12:00:00Z",
+    "value": "14.600",
+    "err_code": 99,
+    "url": "/0000016011/0003/",
+    "csv_file": "/data/month/16011_0003.csv"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -7.694598,
+     52.351525
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "id": 2267,
+   "properties": {
+    "station_ref": "0000016011",
+    "station_name": "Clonmel",
+    "sensor_ref": "OD",
+    "region_id": 4,
+    "datetime": "2026-10-24T12:15:00Z",
+    "value": "15.355",
+    "err_code": 99,
+    "url": "/0000016011/OD/",
+    "csv_file": "/data/month/16011_OD.csv"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -7.694598,
+     52.351525
+    ]
+   }
+  }
+ ]
+}

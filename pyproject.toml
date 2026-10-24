@@ -1,0 +1,19 @@
+[project]
+name = "river-forecast"
+version = "0.1.0"
+requires-python = ">=3.12"
+# Runtime is stdlib + boto3 (provided by the Lambda Python runtime).
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "boto3", "moto[s3]>=5", "ruff"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "RUF"]
