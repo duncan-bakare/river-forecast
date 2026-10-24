@@ -76,7 +76,9 @@ Newest last. Each entry: what, why, alternatives.
 ## D8. CI/CD and IAM
 - **What:** `infra/bootstrap` (budget, alarms, state bucket, OIDC provider, deploy role, permissions boundary)
   is applied locally. `infra/main` is deployed by GitHub Actions on push to `main` via OIDC role
-  `river-forecast-gha-deploy`, which can only be assumed from `refs/heads/main`.
+  `river-forecast-gha-deploy`, which can only be assumed from `refs/heads/main`. The trust policy matches
+  GitHub's immutable OIDC subject (`repo:duncan-bakare@<id>/river-forecast@<id>:...`), which this repo uses
+  instead of the classic `repo:owner/repo:...`.
 - **Least privilege:** The deploy role can only touch `river-forecast-*` resources. It can only create or
   modify IAM roles that carry the `river-forecast-workload-boundary` permissions boundary, and it cannot
   remove that boundary. So a compromised workflow cannot mint an admin role. The state bucket is reachable
