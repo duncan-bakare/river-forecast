@@ -25,7 +25,8 @@ variable "billing_alarm_usd" {
   default     = 11
 }
 
-variable "github_repo" {
-  type    = string
-  default = "duncan-bakare/river-forecast"
+variable "github_sub_prefix" {
+  description = "OIDC sub prefix. The repo uses GitHub's immutable subject format (owner and repo IDs), see GET /repos/{repo}/actions/oidc/customization/sub."
+  type        = string
+  default     = "repo:duncan-bakare@182490072/river-forecast@1432169429"
 }
