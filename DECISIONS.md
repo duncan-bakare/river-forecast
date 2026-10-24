@@ -147,3 +147,20 @@ Newest last. Each entry: what, why, alternatives.
   S3. Then refresh monthly, because OPW revises history as data is checked (254 → 31). Keep the real-time CSV
   ingest for the 8 stations Hydro-Data lacks and for the `0001` series. Rainfall ZIPs come from separate OPW
   rain gauges (e.g. 80101), so those near each catchment still need identifying.
+
+## D12. Hydro-Data snapshot pulled (2026-10-24)
+- **What:** Job `opw_hydrodata`. Per-station `*_complete.zip` files are stored byte-for-byte at
+  `raw/opw_hydrodata/snapshot=2026-10-24/param={S,Q,Precip}/station=NNNNN/<file>.zip`, with layer and station
+  `index.json` metadata alongside and a streaming validation report per ZIP. It refreshes monthly (1st of
+  the month, 04:00–04:40 UTC), one EventBridge rule per parameter.
+- **Selection:** S and Q cover every hydrometric-area-16 station in the Hydro-Data layer (including inactive
+  historical ones) plus 09369. Precip covers every OPW rain gauge within 15 km of a forecast point.
+- **Result:** 134 objects, 301 MB, 0 failures, 0 quarantined.
+  - S: 33 stations, 42.0 M rows, 1940-01-14 → 2026-10-23. Quality codes: 88.0% code 31, 3.2% −1, 2.6% 32,
+    2.4% 254, 2.3% 101.
+  - Q: 17 stations, 13 with data, 27.5 M rows. Header-only for 16156, 16157, 16158 and 16159, even though they
+    appear in the flow layer.
+  - Precip: 24 gauges, 12.0 M rows, 2005-08-09 →. Quality codes: 97.8% code 254 (unchecked).
+- **Undocumented quality codes:** 99 (S 0.8%, Precip 1.8%) and 96 (Q 4.2%) are not on OPW's quality-codes
+  page. They are kept as-is and not interpreted.
+- **Not pulled:** water temperature (`TWater`). It isn't useful for level forecasting and is cheap to add later.
