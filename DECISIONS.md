@@ -26,8 +26,7 @@ Newest last. Each entry: what, why, alternatives.
 - **Why:** The account rejects EUR (`EUR is not in the supported unit set: [USD]`). USD 11 is just under
   EUR 10 at current rates, so alerts fire slightly early rather than late.
 - **Caveat:** The billing alarm needs "Receive CloudWatch billing alerts" turned on in the Billing console
-  preferences. That console-only setting has no API, so it has not been turned on yet, and the alarm stays at
-  INSUFFICIENT_DATA until it is. The Budget works regardless.
+  preferences. That console-only setting has no API, so the owner turned it on by hand (done 2026-10-24).
 
 ## D4. Raw-first storage with validation reports and quarantine
 - **What:** Every payload is stored gzipped exactly as fetched. A JSON validation report goes next to it under
