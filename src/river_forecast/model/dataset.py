@@ -9,7 +9,6 @@ Quality handling:
   inputs whatever their status, so training and serving see the same preprocessing.
 """
 
-import duckdb
 import numpy as np
 import pandas as pd
 
@@ -44,6 +43,8 @@ def _sql(db, q):
 
 
 def load_hourly(curated, start="2006-01-01"):
+    import duckdb  # local import: the live Lambda does not ship duckdb
+
     db = duckdb.connect()
     db.sql("SET TimeZone='UTC'")
     hd = f"{curated}/opw_hydrodata/snapshot=*"

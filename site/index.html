@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en-IE">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clonmel river level forecast (experimental)</title>
+<meta name="description" content="Experimental research forecast of the River Suir level at Clonmel. Not an official flood warning.">
+<meta name="robots" content="noindex">
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to the forecast</a>
+<header class="site">
+  <div class="wrap">
+    <p class="brand">River forecast: Suir at Clonmel</p>
+    <nav aria-label="Main"><ul>
+      <li><a href="index.html" aria-current="page">Forecast</a></li>
+      <li><a href="verification.html">How accurate is it?</a></li>
+      <li><a href="method.html">Method and limits</a></li>
+    </ul></nav>
+  </div>
+</header>
+<div class="banner" role="note">
+  <div class="wrap"><strong>This is not an official flood warning.</strong> It is an experimental research forecast that can be wrong, late or unavailable. Do not use it to make safety decisions. For flood information see <a href="https://www.floodinfo.ie/">floodinfo.ie</a> and <a href="https://www.met.ie/warnings">met.ie/warnings</a>, and follow your local authority.</div>
+</div>
+
+<main id="main" class="wrap">
+  <h1>Clonmel river level forecast</h1>
+  <p class="lede">River Suir at the OPW Clonmel gauge (station 16011). Hourly mean level in metres above Ordnance Datum, as published by OPW. Experimental.</p>
+
+  <noscript><div class="notice notice-alert">This page needs JavaScript to show the forecast. Please use the official sources linked above.</div></noscript>
+  <div id="status" class="notice" role="status" hidden></div>
+  <dl id="facts" class="facts" hidden></dl>
+
+  <section id="chart-section" hidden aria-labelledby="chart-h">
+    <h2 id="chart-h">Observed level and forecasts</h2>
+    <fieldset class="zone"><legend class="small">Time axis</legend>
+      <label><input type="radio" name="zone" value="utc" checked> UTC</label>
+      <label><input type="radio" name="zone" value="irish"> Irish time (GMT/IST)</label>
+    </fieldset>
+    <div class="chart-box"><div id="chart"></div></div>
+    <ul class="legend" aria-label="Chart key">
+      <li><span class="sw obs"></span> Observed (hourly mean)</li>
+      <li><span class="dot"></span> LightGBM forecast, with its 90% interval bar</li>
+      <li><span class="dia"></span> Linear baseline</li>
+      <li><span class="sw pers"></span> Persistence (level stays as it is)</li>
+      <li><span class="sw th"></span> OPW statistical levels (not warning levels)</li>
+    </ul>
+    <p class="small">The dotted line joins the four forecast points to show their order. It is not a forecast of the river's shape between them. <span id="offchart"></span></p>
+  </section>
+
+  <section id="fc-table" hidden aria-labelledby="table-h">
+    <h2 id="table-h">Forecast table</h2>
+    <p class="small">"+6 h" means six hours after the latest data hour shown above (usually two to three hours behind the clock, because OPW's hourly rainfall arrives late). Forecast times are the start of an hour, as hourly means.</p>
+    <div class="scroll" role="region" aria-label="Forecast table, scrolls sideways on small screens" tabindex="0">
+      <table class="wide">
+        <thead><tr>
+          <th scope="col">Forecast for (hour starting)</th>
+          <th scope="col">After data</th>
+          <th scope="col" class="num">LightGBM</th>
+          <th scope="col" class="num">90% interval</th>
+          <th scope="col" class="num">Linear baseline</th>
+          <th scope="col" class="num">Persistence</th>
+          <th scope="col">Track record in past floods</th>
+        </tr></thead>
+        <tbody id="fc-body"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="trust" class="panel" hidden aria-labelledby="trust-h">
+    <h2 id="trust-h" class="flush">How much to trust these numbers</h2>
+    <ul>
+      <li>The 90% intervals are <strong>too narrow in floods</strong>: in the eight biggest past floods they contained the observed level in only about 65 to 80% of hours (see the track-record column).</li>
+      <li>From about 24 hours ahead, the model is <strong>little or no better than assuming the level stays where it is</strong>, because it has no rainfall forecast. At 48 hours it is not reliably better in floods.</li>
+      <li>It uses observed rain only and cannot see a storm that has not yet reached the rain gauges.</li>
+      <li>The grey and amber dashed levels are OPW <em>statistical</em> levels (reached 1% of the time, and the median annual maximum). They are not flood-warning levels and say nothing about flooding in Clonmel.</li>
+    </ul>
+    <p><a href="verification.html">See the accuracy figures</a> and <a href="method.html">the method and its limits</a>.</p>
+  </section>
+
+  <section id="warnings" class="panel" aria-live="polite"><h2 class="flush">Met Éireann weather warnings</h2><p>Loading…</p></section>
+
+  <section aria-labelledby="official-h">
+    <h2 id="official-h">Official sources</h2>
+    <ul>
+      <li><a href="https://www.floodinfo.ie/">floodinfo.ie</a>: OPW flood information for Ireland.</li>
+      <li><a href="https://www.met.ie/warnings">met.ie/warnings</a>: Met Éireann weather warnings.</li>
+      <li><a href="https://waterlevel.ie/0000016011/0001/">OPW's live Clonmel gauge page</a> (waterlevel.ie).</li>
+    </ul>
+    <p>In an emergency, call 112 or 999.</p>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <p><strong>Not an official flood warning and not a flood forecasting service.</strong> Experimental; provided without any warranty. Times are given in UTC with Irish time (GMT in winter, IST in summer) alongside.</p>
+    <p><strong>Water level and rainfall data:</strong> Contains Irish Public Sector Information licensed under a Creative Commons Attribution 4.0 International (CC BY 4.0) licence (source <a href="http://waterlevel.ie/hydro-data/">http://waterlevel.ie/hydro-data/</a> – provided by the Office of Public Works.) The data are provisional unless marked as checked, and OPW's <a href="https://waterlevel.ie/hydro-data/html/disclaimer.html">disclaimer</a> applies.</p>
+    <p><strong>Weather warnings:</strong> Source: Met Éireann, licensed under <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>. Met Éireann does not endorse or support this site.</p>
+    <p>Code and data notes: <a href="https://github.com/duncan-bakare/river-forecast">github.com/duncan-bakare/river-forecast</a>.</p>
+  </div>
+</footer>
+<script type="module" src="assets/forecast.js"></script>
+</body>
+</html>

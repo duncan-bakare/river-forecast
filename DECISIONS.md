@@ -436,3 +436,78 @@ stand (LightGBM reproduced exactly: same tree counts 831/141/144/143 and identic
 **Still open:** the backtests are mostly held-out events rather than forward-in-time forecasts (D19). The models and predictions are saved
 outside the repo (`rf-data/phase2_rerun_*`, not versioned). No rainfall forecasts yet, so 24–48 h skill is limited by missing rainfall (D20).
 This is still not suitable for publication as a flood forecast.
+
+## D23. Live forecast pipeline (`river_forecast.live`, Lambda `river-forecast-live`, hourly at :25)
+- **Inputs, matched to training.** Levels come from OPW's real-time 7-day CSVs for Clonmel and the 14 upstream stations,
+  converted to hourly means (hour-start label, at least 3 of 4 readings, jumps over 1 m/h dropped), the same as the training
+  frame. Rain comes from Hydro-Data `Precip/week.json` (hourly totals) for the last ~7 days and `year.json` daily totals (cached
+  in S3, refreshed every 6 h) spread evenly over the hours of older days, to give the 30-day window. I checked the alignment
+  against the archive before relying on it: the hourly total labelled *t* equals the sum of the 15-minute values from hour-start *t*
+  (correlation 1.0, zero error at three gauges). The same rain QC is applied (50 mm spike filter, flagged gauge-years removed,
+  mean of at least 5 gauges). The gauge list and flags are a snapshot (`live/live_config.json`); a step-biased gauge keeps its flag
+  into a new year until the file is regenerated. **TODO: regenerate it monthly** (it is a manual step today).
+- **Rain lags levels.** Hydro-Data's hourly rain is published about 1–2 h after the hour ends, so the latest hour with level *and*
+  rain is typically 2–3 h behind the clock. The forecast is issued from that hour (`data_through`), and times are shown as absolute
+  valid times. "+6 h" counts from `data_through`, not from now. Not hiding this is deliberate; the page and the method page say it.
+- **Failure behaviour: no forecast rather than a wrong one.** Status is `unavailable` if the latest Clonmel reading is over 3 h old,
+  there is no hour with both level and rain, or inputs are over 4 h old; `degraded` if fewer than 10 of 14 upstream stations or
+  fewer than 12 rain gauges are available. The Lambda writes an explicit `unavailable` document on an internal error, then fails (so
+  the alarm fires). The page additionally hides everything if `forecast.json` is older than 3 h, is unreadable or dated in the
+  future. A Met Éireann outage removes the warnings panel but not the forecast.
+- **Why not the LightGBM package at inference.** LightGBM 4.6 hard-imports scipy, which the AWS pandas layer lacks, and adding
+  scipy would exceed Lambda's 250 MB unpacked limit. Stubbing scipy would be brittle. Instead `live/trees.py` evaluates the text model
+  in numpy (numerical splits, regression and quantile objectives, all three missing-value modes) and refuses anything else.
+  It is tested against `lightgbm.Booster` including NaNs, and `scripts/export_live_assets.py` re-verifies point, interval and
+  linear predictions against the fitted models on 300 real rows (exact to 1e-9) before the bundle is uploaded. My first parser
+  skipped trees (it split on blank lines); the tree-count check and the parity tests caught it before anything shipped.
+- **Warnings.** Met Éireann's feed lists region codes, not names, and the headline lists counties. I match the headline against
+  Tipperary, Waterford, Kilkenny, Limerick, Cork and the provinces and *fail open*: a warning whose area can't be parsed is shown.
+- **Prospective verification.** Every hourly forecast is archived (`forecasts/clonmel/issued_date=…/`), so a true out-of-sample
+  check will be possible. None has been done.
+- **Fixed during the build:** `latest_observation` paired the newest 15-minute reading's *time* with the last *hourly mean*'s level
+  (15.595 m labelled 16:00). Found by looking at the rendered page, fixed to use the same reading, with a test.
+
+## D24. Site hosting and security (`infra/site`, CI deploy)
+- **S3 (private, OAC) behind CloudFront**, cheapest price class, default `*.cloudfront.net` certificate. GitHub Pages was rejected
+  because `forecast.json` changes hourly (it would need hourly commits). CloudFront needed no account verification here.
+  `infra/site` is applied locally like `infra/bootstrap` (a CDN rarely changes); CI only syncs `site/` and invalidates the cache,
+  and the deploy role gained exactly one new permission (`cloudfront:CreateInvalidation` on this account's distributions).
+- **Headers:** a response-headers policy sets a strict CSP (`default-src 'none'`, scripts, styles, images and connections `'self'`
+  only, no framing), HSTS, `nosniff` and `no-referrer`. Pages therefore contain no inline scripts or styles (tested), and dynamic
+  text is added with `textContent`, so a warning headline from the Met feed can't inject markup.
+- **Caching:** `forecast.json` is served with `max-age=60`; everything else with `max-age=300` and a deploy-time invalidation. The
+  sync excludes `data/forecast.json` so a deploy never deletes or overwrites the live forecast. `site/data/verification.json` is
+  generated in CI from the result CSVs (`scripts/build_site_data.py`) and not committed. A `.gitignore` rule for `data/` had been
+  excluding `site/data/` and would have silently dropped the sample forecast the tests use; fixed.
+- **`noindex`** on every page: an experimental flood-level forecast shouldn't be surfaced by search engines.
+
+## D25. Frontend design and safety decisions
+- **No design brief was found.** The request mentioned "the design brief in CLAUDE.md", but CLAUDE.md has none (26 lines: stack,
+  autonomy, guardrails, workflow). I did not invent one. I followed what *is* there (attribution, show Met Éireann warnings,
+  state plainly it is not an official flood warning) and kept all styling in CSS variables at the top of `site/assets/style.css`,
+  so a brief can be applied by editing one block. **If a brief exists, it needs applying.**
+- **Pages:** the live forecast with intervals; "how accurate is it?" (the corrected Phase 2 table, against persistence and the linear
+  baseline, with the cases that are *not* better listed automatically from the data); method and limitations.
+- **Safety rules built in:** the "not an official flood warning" notice is static HTML on every page (visible without JavaScript);
+  the numbers are hidden whenever status is not ok/degraded or the file is old; the OPW statistical levels are labelled "not a warning
+  level" and drawn only if near the data; no red/amber/green risk colouring (state is shown in words); each horizon carries its
+  own track record from the verification, including the interval coverage in past floods; the 4 forecast points are joined by a dotted line
+  that is explicitly *not* a forecast of the shape between them; the "How much to trust" panel is on the forecast page, not only on
+  another page; official sources and 112/999 are on the forecast page.
+- **Time:** every time is UTC with Irish time (GMT in winter, IST in summer) alongside, computed from `Europe/Dublin` so the clock
+  change on 25 Oct 2026 (01:00 UTC) is right (tested at both sides of it). The chart axis can be switched between UTC and Irish time.
+- **Accessibility:** skip link, landmarks, table captions and scoped headers, a data table for the chart, text alternatives, focus
+  styles, colour-scheme support, scroll regions for wide tables and the chart on narrow screens, no information by colour alone.
+  Checked by rendering at 1100 px and in a 390 px frame. Not tested with a screen reader.
+- **Found by looking at renders (not by tests):** the skill tables clipped the LightGBM column; a stray "Loading…"; duplicate
+  headings; "worse than persistence" shown for a skill of −0.001 (now "same" within 0.005); the chart unreadable on a phone; very tall
+  table rows. All fixed.
+
+## D26. Things I am not sure about and you should decide
+- **Whether a public numeric forecast of a flood-prone town's river level should be public at all**, given D20/D22: not suitable
+  for publication as a flood forecast. I built it as asked, with the safeguards in D25, but the site is reachable by anyone with the URL,
+  and so is the (public) repository. The site is `noindex`, not access-controlled. Consider whether to keep it unlisted, add a login
+  layer, or leave it as is.
+- The forecast page repeats "65 to 80%" and "86–88%" as static text next to numbers that come from the data. If the model is
+  re-verified, update the text on `index.html`, `verification.html` and `method.html` (a test pins the 60–82% range).
+- Real AWS spend has not been checked yet (expected a few cents a month; the budget alerts at USD 11).

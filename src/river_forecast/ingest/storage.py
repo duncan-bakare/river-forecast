@@ -7,8 +7,10 @@ class MemoryStore:
     def __init__(self):
         self.objects = {}
 
-    def put(self, key, body, content_type="application/octet-stream"):
+    def put(self, key, body, content_type="application/octet-stream", cache_control=None):
         self.objects[key] = body
+        self.meta = getattr(self, "meta", {})
+        self.meta[key] = {"content_type": content_type, "cache_control": cache_control}
 
     def exists(self, key):
         return key in self.objects
@@ -32,8 +34,9 @@ class S3Store:
         self.bucket = bucket
         self.client = client
 
-    def put(self, key, body, content_type="application/octet-stream"):
-        self.client.put_object(Bucket=self.bucket, Key=key, Body=body, ContentType=content_type)
+    def put(self, key, body, content_type="application/octet-stream", cache_control=None):
+        extra = {"CacheControl": cache_control} if cache_control else {}
+        self.client.put_object(Bucket=self.bucket, Key=key, Body=body, ContentType=content_type, **extra)
 
     def exists(self, key):
         resp = self.client.list_objects_v2(Bucket=self.bucket, Prefix=key, MaxKeys=1)

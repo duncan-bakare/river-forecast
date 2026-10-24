@@ -21,3 +21,7 @@ data/
 *.zip
 .env
 !tests/fixtures/*.zip
+
+# The site's data folder is tracked, except the file CI generates from docs/phase2/rerun
+!site/data/
+site/data/verification.json

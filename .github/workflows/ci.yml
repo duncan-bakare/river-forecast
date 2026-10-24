@@ -25,6 +25,11 @@ jobs:
       - run: ruff check src tests scripts analysis
       - run: ruff format --check src tests scripts analysis
       - run: pytest -q
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+      - name: site tests
+        run: node --test site/tests/site.test.mjs
 
   terraform-check:
     runs-on: ubuntu-latest
@@ -36,7 +41,7 @@ jobs:
       - run: terraform fmt -check -recursive infra
       - name: validate
         run: |
-          for d in infra/bootstrap infra/main; do
+          for d in infra/bootstrap infra/main infra/site; do
             terraform -chdir=$d init -backend=false -input=false
             terraform -chdir=$d validate
           done
@@ -61,3 +66,15 @@ jobs:
           terraform_version: "~1.16"
       - run: terraform -chdir=infra/main init -input=false
       - run: terraform -chdir=infra/main apply -input=false -auto-approve
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: build site data
+        run: |
+          pip install pandas
+          python scripts/build_site_data.py
+      # forecast.json is written hourly by the live Lambda, so it is excluded from the sync (and from --delete).
+      - name: publish site
+        run: |
+          aws s3 sync site/ s3://river-forecast-site-240352458218/ --delete             --exclude "data/forecast.json" --exclude "data/forecast.sample.json" --exclude "tests/*"             --cache-control "public, max-age=300"
+          aws cloudfront create-invalidation --distribution-id E2HJVE1R02YFBG --paths "/*" > /dev/null

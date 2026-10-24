@@ -96,6 +96,23 @@ class UpstreamLinear:
         self.full_mask_ = full
         return self
 
+    def to_dict(self):
+        return {
+            "stations": list(self.stations),
+            "full_mask": int(self.full_mask_),
+            "models": [
+                {"mask": int(m), "cols": cols, "coef": coef.tolist(), "n": n}
+                for m, (cols, coef, n) in self.models_.items()
+            ],
+        }
+
+    @classmethod
+    def from_dict(cls, d):
+        obj = cls(stations=d["stations"])
+        obj.models_ = {int(m["mask"]): (m["cols"], np.array(m["coef"]), m["n"]) for m in d["models"]}
+        obj.full_mask_ = int(d["full_mask"])
+        return obj
+
     def _choose(self, avail):
         best = None
         for m, (_, _, n) in self.models_.items():
