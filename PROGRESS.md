@@ -146,3 +146,28 @@
 **What didn't work:** recalibration only partly helps. Flood coverage stays at 65–81%, because errors are heavy-tailed on rising limbs and in the
 lead-up to floods, so it is a documented limitation. The rise-aware regime gave no further gain. Only 4 events per fold support these coverage numbers.
 LightGBM's results are unchanged and reproduced exactly. The v1 exceedance counts for LightGBM were slightly inflated by the onset artifact.
+
+## Live forecast and frontend (2026-10-24)
+
+**Done** (D23–D26)
+- Live pipeline: an hourly Lambda reads OPW levels and rain, applies the saved models (numpy tree evaluator, verified against
+  LightGBM), and writes `forecast.json` with an hourly archive for later verification. It hides itself when inputs are old or missing.
+- Static site on S3 + CloudFront: live forecast with intervals, verification page (the corrected Phase 2 table against persistence and
+  the linear baseline, generated from the result CSVs), and method and limitations. Met Éireann warnings shown. OPW and Met Éireann
+  attribution, "not an official flood warning" and UTC/Irish-time labels on every page.
+- README rewritten in first person with architecture, trade-offs, results and limitations.
+- Tests: 94 Python and 21 JavaScript (time zones including the 25 Oct clock change, status rules, chart maths, CSP and attribution
+  checks on the static pages).
+
+**What didn't work / found along the way**
+- No design brief exists in CLAUDE.md (D25). The styling is a neutral default in CSS variables.
+- LightGBM can't run in the Lambda (needs scipy); wrote a tree evaluator. Its first version silently skipped trees until a parity test
+  caught it.
+- `latest_observation` mixed two readings; the `.gitignore` swallowed `site/data/`; the verification page clipped, mislabelled
+  and was unreadable on a phone. All found by rendering the pages, and fixed.
+- Rain arrives 2–3 h after levels, so forecasts are issued from an older hour than the latest level.
+- The rain-gauge flags in `live_config.json` are a snapshot and need regenerating monthly (manual).
+
+**Next**
+- Decide D26 (public or not). Apply a design brief if one exists. Keep archiving; compare live forecasts with outcomes.
+- Try archived Met Éireann HARMONIE rain as a model input once enough history exists.

@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en-IE">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How accurate is the Clonmel forecast?</title>
+<meta name="description" content="Verification of the experimental Clonmel river level forecast against persistence and a linear baseline, including where it is no better.">
+<meta name="robots" content="noindex">
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to the content</a>
+<header class="site">
+  <div class="wrap">
+    <p class="brand">River forecast: Suir at Clonmel</p>
+    <nav aria-label="Main"><ul>
+      <li><a href="index.html">Forecast</a></li>
+      <li><a href="verification.html" aria-current="page">How accurate is it?</a></li>
+      <li><a href="method.html">Method and limits</a></li>
+    </ul></nav>
+  </div>
+</header>
+<div class="banner" role="note">
+  <div class="wrap"><strong>This is not an official flood warning.</strong> It is an experimental research forecast that can be wrong, late or unavailable. Do not use it to make safety decisions. For flood information see <a href="https://www.floodinfo.ie/">floodinfo.ie</a> and <a href="https://www.met.ie/warnings">met.ie/warnings</a>, and follow your local authority.</div>
+</div>
+
+<main id="main" class="wrap">
+  <h1>How accurate is the forecast?</h1>
+  <p class="lede">Past performance of model <span id="model-version">v1</span> for the Clonmel level, compared with two simple alternatives. These are results on past data, not a promise about the next flood.</p>
+
+  <section aria-labelledby="what-h">
+    <h2 id="what-h">What is being compared</h2>
+    <ul>
+      <li><strong>Persistence</strong>: assume the level stays exactly where it is now. Any useful forecast must beat this.</li>
+      <li><strong>Linear baseline</strong>: a simple model using only the recent changes at Clonmel and at gauges upstream on the Suir and its tributaries. No rain.</li>
+      <li><strong>LightGBM</strong>: the forecast on the live page. Uses upstream levels, observed rainfall from 24 OPW rain gauges, and the season. It gets <em>no rainfall forecast</em>.</li>
+    </ul>
+    <p>The model was trained on data up to the end of 2018, tuned on 2019–2021, and tested on 2022 onwards. The eight biggest floods since 2006 were removed from training and used as separate tests. Five of those eight happened before 2019, so they are <em>held-out events</em> rather than true forecasts into the future. Treat the flood results as somewhat optimistic.</p>
+  </section>
+
+  <section class="panel" aria-labelledby="worse-h">
+    <h2 id="worse-h" class="flush">Where the model is no better than persistence</h2>
+    <p>Skill is the reduction in squared error compared with persistence: 0 means no better, 1 is perfect, below 0 is worse. The range in brackets covers 90% of 300 re-samples of the data by week. These cases have a range that includes zero, or a negative skill:</p>
+    <div id="not-better"><p>Loading…</p></div>
+  </section>
+
+  <section aria-labelledby="skill-h">
+    <h2 id="skill-h">Skill by lead time</h2>
+    <p class="small">NSE (Nash–Sutcliffe) and KGE (Kling–Gupta) are 1 for a perfect forecast. They look high even for persistence because river levels change slowly, so judge the models by the <em>skill vs persistence</em> columns. All models are scored on the same hours.</p>
+    <div id="skill"><p>Loading…</p></div>
+  </section>
+
+  <section aria-labelledby="peaks-h">
+    <h2 id="peaks-h">Flood peaks</h2>
+    <p class="small">Timing: how many hours the forecast peak was from the observed peak. Persistence's peak is always the observed peak delayed by the lead time, so it scores zero on size by construction and should not be read as accurate. The LightGBM 48 h forecast underestimates the peak in all eight floods.</p>
+    <div id="peaks"></div>
+  </section>
+
+  <section aria-labelledby="exc-h">
+    <h2 id="exc-h">Warning lead time when the level crosses a statistical level</h2>
+    <p class="small">Counts how many crossings of OPW's statistical levels each model flagged at least that many hours in advance (within plus or minus 3 hours of the crossing, so the real advance warning can be up to 3 hours shorter). These are not flood-warning levels. A false alarm is a forecast crossing in 2022–2026 with no observed crossing within 24 hours. Persistence cannot see a crossing coming, so it scores zero by definition. No model gives useful advance notice beyond about 12 hours.</p>
+    <div id="exceedance"></div>
+  </section>
+
+  <section aria-labelledby="int-h">
+    <h2 id="int-h">Are the 90% intervals honest?</h2>
+    <p class="small">A 90% interval should contain the truth 90% of the time. In everyday conditions it contains the level 86 to 88% of the time, a little under. <strong>In the biggest floods it does not</strong>: the first version contained the level in only 61–79% of hours, and recalibrating on the flood events improves that only a little (65–81% when tested on floods not used for the recalibration). Treat the intervals as too narrow in a flood.</p>
+    <div id="intervals"></div>
+  </section>
+
+  <section aria-labelledby="more-h">
+    <h2 id="more-h">More detail</h2>
+    <p>The full report, code and every decision are on GitHub: <a href="https://github.com/duncan-bakare/river-forecast/blob/main/docs/phase2/rerun/report.md">the verification report</a> and <a href="https://github.com/duncan-bakare/river-forecast/blob/main/DECISIONS.md">DECISIONS.md</a>. The live forecast has been archived since 24 October 2026, so a verification on genuinely future data will be possible once enough floods have passed. None has been done yet.</p>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <p><strong>Not an official flood warning and not a flood forecasting service.</strong> Experimental; provided without any warranty.</p>
+    <p><strong>Water level and rainfall data:</strong> Contains Irish Public Sector Information licensed under a Creative Commons Attribution 4.0 International (CC BY 4.0) licence (source <a href="http://waterlevel.ie/hydro-data/">http://waterlevel.ie/hydro-data/</a> – provided by the Office of Public Works.) The data are provisional unless marked as checked, and OPW's <a href="https://waterlevel.ie/hydro-data/html/disclaimer.html">disclaimer</a> applies.</p>
+    <p><strong>Weather warnings:</strong> Source: Met Éireann, licensed under <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>. Met Éireann does not endorse or support this site.</p>
+    <p>Code and data notes: <a href="https://github.com/duncan-bakare/river-forecast">github.com/duncan-bakare/river-forecast</a>.</p>
+  </div>
+</footer>
+<script type="module" src="assets/verification.js"></script>
+</body>
+</html>

@@ -139,6 +139,11 @@ data "aws_iam_policy_document" "gha_deploy" {
     resources = [aws_iam_role.gha_deploy.arn]
   }
   statement {
+    sid       = "SiteCacheInvalidation"
+    actions   = ["cloudfront:CreateInvalidation", "cloudfront:GetInvalidation"]
+    resources = ["arn:aws:cloudfront::${local.account_id}:distribution/*"]
+  }
+  statement {
     sid       = "ReadOnlyDescribes"
     actions   = ["logs:DescribeLogGroups", "cloudwatch:DescribeAlarms", "sts:GetCallerIdentity"]
     resources = ["*"]
