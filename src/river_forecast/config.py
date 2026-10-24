@@ -62,6 +62,21 @@ CATCHMENTS = {
     },
 }
 
+# OPW Hydro-Data (KISTERS) static exports: full period-of-record per station.
+HYDRODATA_BASE = "https://waterlevel.ie/hydro-data/data/internet"
+HYDRODATA_PARAMS = {
+    # param: (layer id, bulk file name)
+    "S": (10, "Waterlevel_complete.zip"),
+    "Q": (30, "Discharge_complete.zip"),
+    "Precip": (40, "Rainfall_complete.zip"),
+}
+# Area 16 is the whole Suir (including inactive historical stations); 09369 is the
+# only Dodder station on Hydro-Data (09010 Waldron's Bridge is real-time only).
+HYDRODATA_AREA_PREFIXES = ("16",)
+HYDRODATA_EXTRA_STATIONS = ("09369",)
+# OPW rain gauges are selected by distance from any forecast point.
+RAIN_GAUGE_RADIUS_KM = 15.0
+
 # Met Éireann point forecasts spread over each catchment (lat, lon).
 FORECAST_POINTS = {
     "dodder_glenasmole": (53.235, -6.365),
