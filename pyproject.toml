@@ -5,7 +5,7 @@ requires-python = ">=3.12"
 # Ingest runtime is stdlib + boto3. Transform also needs pyarrow/numpy (AWS SDK for pandas layer).
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "boto3", "moto[s3]>=5", "ruff", "pandas", "pyarrow", "numpy", "duckdb", "pytz", "matplotlib"]
+dev = ["pytest>=8", "boto3", "moto[s3]>=5", "ruff", "pandas", "pyarrow", "numpy", "duckdb", "pytz", "matplotlib", "lightgbm", "scikit-learn"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
@@ -19,4 +19,4 @@ src = ["src", "tests"]
 select = ["E", "F", "W", "I", "B", "UP", "RUF"]
 
 [tool.ruff.lint.per-file-ignores]
-"analysis/*" = ["E501"]
+"analysis/*" = ["E501", "E402"]

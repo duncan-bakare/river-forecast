@@ -86,3 +86,45 @@
 - Baseline models for Clonmel level/flow at 6–48 h (persistence, linear/GBM on upstream levels and rain),
   verified on held-out flood events.
 - Archive HARMONIE forecasts long enough to train or evaluate with forecast rain rather than observed rain.
+
+## Phase 2: Clonmel level forecasts (2026-10-24)
+
+**Done**
+- Fixed the Rosegreen gap: neighbour-based rain QC (`features/rain_qc`, D17) flags step biases and bad gauge-years.
+  Rosegreen 2020–2026 is now caught, with 22 gauge-years flagged in all.
+- Measured upstream travel times to Clonmel and chose horizons of 6, 12, 24 and 48 h (D18).
+- Models for Clonmel 16011: persistence, an upstream-lag linear model, and LightGBM with 90% conformalised
+  quantile intervals (D19). Time-based splits only (train < 2019, calibration 2019–2021, test ≥ 2022). The 8 biggest floods
+  since 2006 were found in the data and held out as backtests.
+- Metrics: NSE, KGE, MSE skill vs persistence with a block bootstrap, peak timing and size error, exceedance detection
+  with lead time, false alarms and CSI, and interval coverage (`model/metrics.py`).
+- Report and figures: `docs/phase2/report.md` (from `analysis/phase2.py`). Tests: 56 in all (10 metrics, 6 models,
+  6 rain QC, plus the earlier suites).
+
+**Numbers** (full table in D20)
+- Checked test set 2022–2025, LightGBM skill vs persistence: **0.85 / 0.61 / 0.41 / 0.19** at 6 / 12 / 24 / 48 h.
+  NSE 0.997 / 0.981 / 0.932 / 0.822 (persistence 0.982 / 0.952 / 0.886 / 0.780).
+- Flood backtests: skill 0.85 / 0.63 / 0.34 / 0.08 (the 48 h interval spans zero).
+- Exceedance of 16.702 m: LightGBM catches 16 of 16 onsets at 6 h, 9 at 12 h, 3 at 24 h and 0 at 48 h. Persistence
+  catches 2, 1, 0 and 0.
+- 90% intervals cover 0.86–0.87 on the test set but only 0.61–0.79 on the flood backtests.
+- With *perfect* future rainfall, skill at 24 and 48 h would be 0.79 and 0.82. Nearly all of the missing long-lead
+  skill is rainfall forecast, not the gauge network.
+
+**What didn't work / needs saying**
+- Beyond 12 h the model is close to persistence: at 48 h it is not distinguishable from persistence on floods, and
+  worse than persistence on 2026 provisional data (skill −0.09, KGE also lower).
+- The upstream-linear baseline silently fell back to persistence for 32% of hours, and entirely in 4 of the 8
+  flood events. Its numbers understate what a working linear baseline would do (D21.1).
+- Intervals under-cover in floods. Exceedance onset counts have a small splice artifact. Five of eight backtests
+  are held-out events rather than forward-in-time forecasts (D19, D21).
+- The provisional-data test contains no flood (2026 provisional maximum 15.85 m).
+- Trained models were not saved, so re-running takes about 14 minutes (D21.4).
+- Beakstown and Thurles gave non-physical (negative) travel times (D18).
+- Not suitable for publishing as a flood forecast.
+
+**Next (Phase 3 candidates)**
+- Fix the linear baseline and the onset search, persist models and calibration counts, and re-run.
+- Calibrate the high-flow intervals properly (blocked cross-validation that keeps the floods).
+- Evaluate with HARMONIE rain once enough forecast history exists, and keep archiving it.
+- Dodder as a secondary rainfall-driven nowcast, once there is a winter of Waldron's Bridge data.

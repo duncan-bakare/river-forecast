@@ -9,7 +9,7 @@ real-time water levels and Met Éireann weather forecasts.
 
 ## Status
 
-Phase 0 (ingestion) and Phase 1 (history, curated Parquet, analysis) are **done**. Hourly and daily jobs archive raw data for both catchments to S3. See
+Phases 0 (ingestion), 1 (history, curated Parquet, analysis) and 2 (Clonmel baselines and LightGBM) are **done**. Hourly and daily jobs archive raw data for both catchments to S3. See
 [PROGRESS.md](PROGRESS.md) for numbers and [DECISIONS.md](DECISIONS.md) for why things are the way they are.
 
 ## Data sources and attribution
@@ -84,6 +84,12 @@ They are refreshed monthly; older snapshots move to Glacier IR, then Deep Archiv
 See [docs/phase1/report.md](docs/phase1/report.md). The main modelling target is the **Suir at Clonmel**
 (DECISIONS D16).
 
+## Phase 2 results
+
+See [docs/phase2/report.md](docs/phase2/report.md) and DECISIONS D18-D21. For Clonmel, LightGBM beats persistence clearly
+at 6-12 h, modestly at 24 h, and is **not reliably better at 48 h**. Its 90% intervals under-cover in floods, and
+nothing here is suitable as a published flood forecast.
+
 ## Repo layout
 
 ```
@@ -95,6 +101,9 @@ infra/bootstrap/                  budget, billing alarm, TF state bucket, GitHub
 infra/main/                       data bucket, ingest + transform Lambdas, schedules, alarms (deployed by CI)
 src/river_forecast/transform/     raw -> curated Parquet (Lambda, AWS SDK for pandas layer)
 analysis/phase1.py                Phase 1 analysis -> docs/phase1/
+analysis/phase2.py                Phase 2 models and verification -> docs/phase2/
+src/river_forecast/model/         dataset, models (persistence, linear, LightGBM + conformal), metrics
+src/river_forecast/features/      rain QC
 ```
 
 ## Development
